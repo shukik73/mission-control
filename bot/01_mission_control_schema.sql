@@ -119,6 +119,7 @@ CREATE TABLE scout_deals (
   seller_feedback_count INT,
   auction_ends_at TIMESTAMPTZ,
   is_local_pickup BOOLEAN DEFAULT false,
+  distance_miles DECIMAL(6,1),
   status TEXT CHECK (status IN ('pending','approved','rejected','purchased')) DEFAULT 'pending',
   decision_made_at TIMESTAMPTZ,
   rejection_reason TEXT,
@@ -128,6 +129,24 @@ CREATE TABLE scout_deals (
 
 CREATE INDEX idx_scout_deals_status ON scout_deals(status);
 CREATE INDEX idx_scout_deals_roi ON scout_deals(roi_percent DESC);
+
+-- ============================================
+-- SCOUT TRENDS (Ghost Protocol pass logging)
+-- ============================================
+CREATE TABLE scout_trends (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  item_type TEXT NOT NULL,
+  model TEXT,
+  avg_price DECIMAL(10,2),
+  avg_value DECIMAL(10,2),
+  pass_reason TEXT,
+  platform TEXT,
+  logged_at TIMESTAMPTZ DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX idx_scout_trends_item_type ON scout_trends(item_type);
+CREATE INDEX idx_scout_trends_logged_at ON scout_trends(logged_at DESC);
 
 -- ============================================
 -- PRICE BENCHMARKS
