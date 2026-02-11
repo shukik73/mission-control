@@ -7,3 +7,6 @@ dist
 .claude/
 .playwright-mcp/
 nul
+
+.vercel
+.env*.local

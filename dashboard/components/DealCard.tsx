@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, MapPin, TrendingUp, DollarSign, Package, UserCheck, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, AlertCircle, Car, HelpCircle, FileText } from 'lucide-react';
+import { Clock, MapPin, TrendingUp, DollarSign, Package, UserCheck, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, AlertCircle, Car, HelpCircle, FileText, Loader2, Check, X } from 'lucide-react';
 import { Deal, Priority } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 
 interface DealCardProps {
   deal: Deal;
+  onApprove?: (id: string) => Promise<void> | void;
+  onPass?: (id: string) => Promise<void> | void;
 }
 
-export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
+export const DealCard: React.FC<DealCardProps> = ({ deal, onApprove, onPass }) => {
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isUrgentTime, setIsUrgentTime] = useState(false);
+  const [actionLoading, setActionLoading] = useState<'approve' | 'pass' | null>(null);
+  const [actionDone, setActionDone] = useState<'approved' | 'passed' | null>(null);
 
   // --- Local Pickup Economics ---
   let pickupCost = 0;
@@ -22,7 +26,6 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
   }
 
   // --- ROI Calculations ---
-  // For SaaS items/Reports with 0 cost, handle gracefully
   const isSaaS = deal.stream === 'saas' || deal.title.includes('Report');
   const totalCost = deal.cost + deal.shipping + pickupCost;
   const profit = deal.marketValue - totalCost;
@@ -44,7 +47,6 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
         roiColorClass = 'text-rose-500';
     }
   } else {
-    // SaaS coloring
     borderColorClass = 'border-l-indigo-500';
     roiColorClass = 'text-indigo-400';
   }
@@ -54,7 +56,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
 
   // Urgent styling
   const isUrgentPriority = deal.priority === Priority.Urgent;
-  
+
   // Urgent Auction Alert (< 1 hour AND > 50% ROI)
   const isUrgentAuction = isUrgentTime && roi > 50 && !isSaaS;
 
@@ -62,7 +64,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
     const updateTime = () => {
       const now = new Date();
       const diff = deal.endsAt.getTime() - now.getTime();
-      
+
       if (diff <= 0) {
         setTimeLeft('Ended');
         setIsUrgentTime(false);
@@ -71,29 +73,65 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
 
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      
+
       setIsUrgentTime(hours < 1);
       setTimeLeft(`${hours}h ${minutes}m`);
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 60000); 
+    const interval = setInterval(updateTime, 60000);
     return () => clearInterval(interval);
   }, [deal.endsAt]);
 
+  // ── Action handlers ──
+  const handleApprove = async () => {
+    if (actionLoading || actionDone) return;
+    setActionLoading('approve');
+    try {
+      await onApprove?.(deal.id);
+      setActionDone('approved');
+    } catch {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePass = async () => {
+    if (actionLoading || actionDone) return;
+    setActionLoading('pass');
+    try {
+      await onPass?.(deal.id);
+      setActionDone('passed');
+    } catch {
+      setActionLoading(null);
+    }
+  };
+
   const cardBaseClasses = `
-    relative bg-surface hover:bg-surfaceHighlight 
-    border border-border 
-    rounded-r-lg shadow-sm mb-4 
-    transition-all duration-200 ease-out 
+    relative bg-surface hover:bg-surfaceHighlight
+    border border-border
+    rounded-r-lg shadow-sm mb-4
+    transition-all duration-200 ease-out
     group overflow-hidden
   `;
 
   const urgencyAnimation = isUrgentAuction ? 'animate-pulse ring-2 ring-rose-500/50' : '';
+  const doneOverlay = actionDone ? 'opacity-60' : '';
 
   return (
-    <div className={`${cardBaseClasses} ${borderColorClass} ${urgencyAnimation}`} style={{ borderLeftWidth: '4px' }}>
+    <div className={`${cardBaseClasses} ${borderColorClass} ${urgencyAnimation} ${doneOverlay}`} style={{ borderLeftWidth: '4px' }}>
       <div className="p-4">
+        {/* Action done badge */}
+        {actionDone && (
+          <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+            actionDone === 'approved'
+              ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50'
+              : 'bg-zinc-500/20 text-zinc-400 border border-zinc-500/50'
+          }`}>
+            {actionDone === 'approved' ? <Check size={10} /> : <X size={10} />}
+            {actionDone === 'approved' ? 'Approved' : 'Passed'}
+          </div>
+        )}
+
         {/* Priority / Category Badges */}
         <div className="flex flex-wrap gap-2 mb-2">
             {deal.priority && (
@@ -120,7 +158,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
         <h3 className="text-primary font-semibold text-sm leading-snug mb-2 group-hover:text-blue-500 transition-colors">
           {deal.title}
         </h3>
-        
+
         <div className="flex items-center text-xs text-secondary space-x-3 mb-3">
           <span className="bg-surfaceHighlight border border-border px-1.5 py-0.5 rounded font-medium">{deal.source}</span>
           <span className={`flex items-center ${isUrgentTime ? 'text-rose-500 font-bold' : ''}`}>
@@ -131,7 +169,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
           </span>
         </div>
 
-        {/* Financial Grid - Only show for Deals, hide for SaaS/Reports if irrelevant */}
+        {/* Financial Grid */}
         {!isSaaS && (
             <div className="grid grid-cols-2 gap-2 bg-background/50 rounded-lg p-2 mb-3 border border-border">
                 <div className="space-y-1">
@@ -187,24 +225,39 @@ export const DealCard: React.FC<DealCardProps> = ({ deal }) => {
         </div>
 
         {/* Actions */}
-        <div className="flex space-x-2 pt-2 border-t border-border">
-            <button 
-                onClick={() => console.log('Approve', deal.id)}
-                className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/50 py-1.5 rounded text-xs font-bold flex items-center justify-center transition-colors">
-                <ThumbsUp size={14} className="mr-1.5" /> Approve
-            </button>
-            <button 
-                onClick={() => console.log('Pass', deal.id)}
-                className="flex-1 bg-surfaceHighlight hover:bg-zinc-200 dark:hover:bg-zinc-700 text-secondary border border-border py-1.5 rounded text-xs font-medium flex items-center justify-center transition-colors">
-                <ThumbsDown size={14} className="mr-1.5" /> Pass
-            </button>
-            <button 
-                onClick={() => console.log('Ask Jay', deal.id)}
-                className="px-2 bg-surfaceHighlight hover:bg-blue-500/20 hover:text-blue-500 hover:border-blue-500/50 text-secondary border border-border rounded flex items-center justify-center transition-colors"
-                title="Ask Jay">
-                <MessageSquare size={14} />
-            </button>
-        </div>
+        {!actionDone && (
+          <div className="flex space-x-2 pt-2 border-t border-border">
+              <button
+                  onClick={handleApprove}
+                  disabled={!!actionLoading}
+                  className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/50 py-1.5 rounded text-xs font-bold flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  {actionLoading === 'approve' ? (
+                    <Loader2 size={14} className="mr-1.5 animate-spin" />
+                  ) : (
+                    <ThumbsUp size={14} className="mr-1.5" />
+                  )}
+                  {actionLoading === 'approve' ? 'Approving...' : 'Approve'}
+              </button>
+              <button
+                  onClick={handlePass}
+                  disabled={!!actionLoading}
+                  className="flex-1 bg-surfaceHighlight hover:bg-zinc-200 dark:hover:bg-zinc-700 text-secondary border border-border py-1.5 rounded text-xs font-medium flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  {actionLoading === 'pass' ? (
+                    <Loader2 size={14} className="mr-1.5 animate-spin" />
+                  ) : (
+                    <ThumbsDown size={14} className="mr-1.5" />
+                  )}
+                  {actionLoading === 'pass' ? 'Passing...' : 'Pass'}
+              </button>
+              <button
+                  onClick={() => console.log('Ask Jay', deal.id)}
+                  disabled={!!actionLoading}
+                  className="px-2 bg-surfaceHighlight hover:bg-blue-500/20 hover:text-blue-500 hover:border-blue-500/50 text-secondary border border-border rounded flex items-center justify-center transition-colors disabled:opacity-50"
+                  title="Ask Jay">
+                  <MessageSquare size={14} />
+              </button>
+          </div>
+        )}
       </div>
     </div>
   );
