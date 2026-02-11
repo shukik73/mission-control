@@ -6,13 +6,13 @@ Deploy Buzz as an OpenClaw Clawdbot sub-agent. Buzz monitors approved creative a
 
 ## IDENTITY
 
-**Name:** Buzz  
-**Agent ID:** `buzz`  
-**Role:** Social Media Management  
-**Reports to:** Jay (Squad Lead)  
-**Partner:** Pixel (Creative Agent)  
-**Model:** claude-sonnet-4-5 (high-quality copy + strategy)  
-**Trigger:** Approved missions in `buzz_missions` table with status='pending'  
+**Name:** Buzz
+**Agent ID:** `buzz`
+**Role:** Social Media Management
+**Reports to:** Jay (Squad Lead)
+**Partner:** Pixel (Creative Agent)
+**Model:** claude-sonnet-4 (strong creative writing + follows detailed style guides well)
+**Trigger:** Approved missions in `buzz_missions` table with status='pending'
 **Tools:** Meta Graph API (Facebook/Instagram), TikTok API, Supabase client, Analytics APIs
 
 ---
@@ -30,7 +30,7 @@ Buzz takes approved creative assets + captions from Pixel, crafts platform-optim
 1. **Receive approved mission** from `buzz_missions` (status='pending')
 2. **Optimize copy per platform** (TikTok casual vs Facebook professional)
 3. **Schedule post** (optimal posting time = 7 PM ET Tue/Thu/Sat for Techy Miramar)
-4. **Monitor engagement** (likes, comments, shares, clicks)
+4. **Monitor engagement** (likes, comments, shares, saves)
 5. **Analyze performance** (what resonates, what doesn't)
 6. **Feed trends** to Scout (for content ideas) + Pixel (for next batch)
 7. **Generate weekly report** (Friday 5 PM)
@@ -50,13 +50,13 @@ Buzz takes approved creative assets + captions from Pixel, crafts platform-optim
 
 **Example:**
 ```
-Our latest MacBook logic board repair is a perfect example of why experience matters. 
-When this device came in completely unresponsive, our certified technicians 
-performed a full diagnostic and micro-soldering repair. Within 24 hours, it was 
-back in action! 
+Our latest MacBook logic board repair is a perfect example of why experience matters.
+When this device came in completely unresponsive, our certified technicians
+performed a full diagnostic and micro-soldering repair. Within 24 hours, it was
+back in action!
 
-Ready to bring your device back to life? Techy Miramar has been serving Miramar 
-since 2013. We handle phones, laptops, tablets, TVs, and more. 
+Ready to bring your device back to life? Techy Miramar has been serving Miramar
+since 2013. We handle phones, laptops, tablets, TVs, and more.
 
 📍 16263 Miramar Pkwy, Miramar, FL 33027
 📞 (954) 392-5520
@@ -81,10 +81,10 @@ Visit us today or call for a free diagnostic!
 ```
 Your MacBook is bricked? 💻
 
-Yeah, we've seen it a thousand times. Liquid damage, electrical surge, 
+Yeah, we've seen it a thousand times. Liquid damage, electrical surge,
 logic board failure—you name it, we've fixed it.
 
-This one came in completely dead. But after a few hours with our 
+This one came in completely dead. But after a few hours with our
 micro-soldering equipment and expertise, it's working like new again. ✨
 
 Want yours saved? Slide into our DMs or save this post for later.
@@ -116,22 +116,111 @@ Text overlays:
 
 ---
 
+## SUPABASE SCHEMA REFERENCE
+
+### Key Tables for Buzz
+
+All tables are defined in `social_media_schema.sql`.
+
+**`buzz_missions`** — Primary work table (scheduling, publishing, status tracking)
+```
+id                  UUID PK
+mission_id          UUID FK → missions(id)     -- Links to central Mission Control
+content_id          UUID FK → pixel_missions(id) -- Links to Pixel's creative output
+business            TEXT ('techy_miramar')
+platforms           TEXT[] (['instagram', 'facebook', 'tiktok'])
+ig_caption          TEXT
+ig_hashtags         TEXT[]
+ig_format           TEXT ('feed'|'reel'|'carousel'|'story')
+fb_caption          TEXT
+fb_hashtags         TEXT[]
+fb_format           TEXT ('post'|'story'|'reel')
+tiktok_caption      TEXT
+tiktok_hashtags     TEXT[]
+tiktok_sound        TEXT                       -- Suggested trending sound
+scheduled_at        TIMESTAMPTZ
+published_at        TIMESTAMPTZ
+post_ids            JSONB                      -- {instagram: 'id', facebook: 'id', tiktok: 'id'}
+status              TEXT ('pending'|'writing'|'needs_approval'|'approved'|'scheduled'|'published'|'analyzing'|'complete'|'ready_for_manual_post')
+shuki_notes         TEXT
+approval_message_id BIGINT                     -- Telegram message ID
+created_at          TIMESTAMPTZ
+updated_at          TIMESTAMPTZ                -- Auto-updated by trigger
+```
+
+**`social_analytics`** — Per-post engagement metrics (UNIQUE on buzz_mission_id + platform)
+```
+id                  UUID PK
+buzz_mission_id     UUID FK → buzz_missions(id)
+platform            TEXT ('instagram'|'tiktok'|'facebook')
+post_id             TEXT                       -- Platform-specific post ID
+likes               INT
+comments            INT
+shares              INT
+saves               INT                        -- Instagram saves
+reach               INT
+impressions         INT
+video_views         INT                        -- For Reels/TikTok
+engagement_rate     DECIMAL(5,2)               -- ⚠️ AUTO-CALCULATED by trigger — do NOT set manually
+profile_visits      INT
+link_clicks         INT                        -- Note: NOT "clicks" — actual column is "link_clicks"
+follower_delta      INT                        -- Followers gained from this post
+audience_demographics JSONB
+check_count         INT                        -- How many times analytics were pulled
+first_check_at      TIMESTAMPTZ
+last_check_at       TIMESTAMPTZ
+```
+
+**`content_performance_insights`** — Weekly/monthly reports (UNIQUE on business + platform + period + period_start)
+```
+id                  UUID PK
+period              TEXT ('weekly'|'monthly')
+period_start        DATE
+period_end          DATE
+business            TEXT
+platform            TEXT ('instagram'|'tiktok'|'facebook'|'all')
+total_posts         INT
+total_reach         INT
+total_impressions   INT
+total_engagement    INT
+avg_engagement_rate DECIMAL(5,2)
+follower_count      INT
+follower_growth     INT
+best_content_type   TEXT
+best_posting_time   TIME
+best_post_id        UUID FK → buzz_missions(id)
+worst_post_id       UUID FK → buzz_missions(id)
+insights            JSONB
+recommendations     TEXT[]
+pixel_direction     TEXT                       -- Creative direction feedback for Pixel
+```
+
+### ⚠️ CRITICAL: Tables That Do NOT Exist
+
+| Wrong Table Name | Use Instead |
+|---|---|
+| `buzz_scheduled_posts` | `buzz_missions` (has `scheduled_at`, `published_at`, `post_ids`, `status`) |
+| `buzz_engagement_metrics` | `social_analytics` (actual table name) |
+| `tiktok_comments` | No table — track comment reply state via TikTok API or in-memory |
+
+---
+
 ## IMPLEMENTATION
 
 ### 1. Monitor for Approved Missions
 
-Buzz polls `buzz_missions` every 30 minutes for approved Pixel work:
+Buzz polls `buzz_missions` every 30 minutes for new work:
 
 ```javascript
 async function checkForApprovedWork(supabase) {
-  const { data: approvedMissions } = await supabase
+  const { data: pendingMissions } = await supabase
     .from('buzz_missions')
-    .select('*')
+    .select('*, pixel_missions(*)')  // Join to get Pixel's creative output
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(10);
-  
-  for (const mission of approvedMissions || []) {
+
+  for (const mission of pendingMissions || []) {
     await processMission(mission, supabase);
   }
 }
@@ -141,84 +230,83 @@ async function checkForApprovedWork(supabase) {
 
 ```javascript
 async function optimizeCopyForPlatform(mission, platform) {
-  const { caption, hashtags, platform_formats } = mission;
-  
+  // Get Pixel's caption variants and hashtags from the linked pixel_mission
+  const pixelData = mission.pixel_missions; // Joined in query above
+  const captionVariants = pixelData?.caption_variants || [];
+  const hashtags = pixelData?.hashtags || {};
+
   const instructions = {
-    facebook: `Professional tone. Include business details: 
-      Techy Miramar, (954) 392-5520, TechyMiramar.com. 
-      2-4 paragraphs. Full sentences. 
-      CTA: "Visit us today" or "Call for free diagnostic". 
-      Add hashtags: ${hashtags.brand.join(' ')} ${hashtags.service.join(' ')}`,
-    
-    instagram: `Conversational hook first. Line breaks for readability. 
-      1-2 emojis. CTA: "DM us" or "Save for later". 
+    facebook: `Professional tone. Include business details:
+      Techy Miramar, (954) 392-5520, TechyMiramar.com.
+      2-4 paragraphs. Full sentences.
+      CTA: "Visit us today" or "Call for free diagnostic".
+      Add hashtags: ${(hashtags.brand || []).join(' ')} ${(hashtags.service || []).join(' ')}`,
+
+    instagram: `Conversational hook first. Line breaks for readability.
+      1-2 emojis. CTA: "DM us" or "Save for later".
       Keep hashtags for first comment. 150 words max.`,
-    
-    tiktok: `Casual, real person talking. Short text overlays (3-5 words). 
-      Hook first. Optional trending sound reference. 
+
+    tiktok: `Casual, real person talking. Short text overlays (3-5 words).
+      Hook first. Optional trending sound reference.
       Comment engagement is key. CTA: "Follow for more"
-      Hashtags: ${hashtags.trending.join(' ')}`
+      Hashtags: ${(hashtags.trending || []).join(' ')}`
   };
-  
+
+  const baseCation = captionVariants[0] || mission.ig_caption || mission.fb_caption || '';
+
   const optimizedCaption = await generateText(
-    `Rewrite this caption for ${platform}:\n${caption}\n\n${instructions[platform]}`
+    `Rewrite this caption for ${platform}:\n${baseCation}\n\n${instructions[platform]}`
   );
-  
+
   return optimizedCaption;
 }
 ```
 
-### 3. Schedule Posts at Optimal Times
+### 3. Schedule Posts — Update buzz_missions Directly
 
 ```javascript
-async function schedulePost(mission, platform, supabase) {
+async function schedulePost(mission, platform, optimizedCaption, supabase) {
   const scheduleMap = {
     facebook: { days: ['Tuesday', 'Thursday'], time: '19:00' }, // 7 PM ET
     instagram: { days: ['Wednesday', 'Friday'], time: '18:00' }, // 6 PM ET
     tiktok: { days: 'daily', time: '18:30' } // 6:30 PM ET
   };
-  
+
   const schedule = scheduleMap[platform];
   const nextPostTime = calculateNextPostTime(schedule);
-  
-  const postPayload = {
-    caption: mission.optimized_captions[platform],
-    image_url: mission.platform_formats[platform],
-    hashtags: mission.hashtags,
-    scheduled_for: nextPostTime
-  };
-  
+
+  // Store optimized caption in the platform-specific column
+  const captionUpdate = {};
+  if (platform === 'facebook') captionUpdate.fb_caption = optimizedCaption;
+  if (platform === 'instagram') captionUpdate.ig_caption = optimizedCaption;
+  if (platform === 'tiktok') captionUpdate.tiktok_caption = optimizedCaption;
+
   // Queue to Meta/TikTok API
   if (platform === 'facebook' || platform === 'instagram') {
-    await scheduleToMeta(postPayload, platform);
+    await scheduleToMeta({ caption: optimizedCaption, scheduled_for: nextPostTime }, platform);
   } else if (platform === 'tiktok') {
-    await scheduleToTikTok(postPayload);
+    await scheduleToTikTok({ caption: optimizedCaption, scheduled_for: nextPostTime });
   }
-  
-  // Log to Supabase
+
+  // Update buzz_missions directly (NOT a separate table)
   await supabase
-    .from('buzz_scheduled_posts')
-    .insert([{
-      buzz_mission_id: mission.id,
-      platform,
-      caption: postPayload.caption,
-      image_url: postPayload.image_url,
-      scheduled_for: nextPostTime,
+    .from('buzz_missions')
+    .update({
+      ...captionUpdate,
+      scheduled_at: nextPostTime.toISOString(),
       status: 'scheduled'
-    }]);
+    })
+    .eq('id', mission.id);
 }
 
 function calculateNextPostTime(schedule) {
   const now = new Date();
   const targetHour = parseInt(schedule.time.split(':')[0]);
   const targetMinute = parseInt(schedule.time.split(':')[1]);
-  
-  // If schedule.days === 'daily', post tomorrow at target time
-  // Otherwise, post on next occurrence of target day(s)
-  
+
   let nextPost = new Date(now);
   nextPost.setHours(targetHour, targetMinute, 0, 0);
-  
+
   if (schedule.days === 'daily') {
     if (nextPost <= now) nextPost.setDate(nextPost.getDate() + 1);
   } else {
@@ -226,46 +314,88 @@ function calculateNextPostTime(schedule) {
       const dayMap = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 0 };
       return dayMap[day];
     });
-    
+
     while (!targetDayIndices.includes(nextPost.getDay())) {
       nextPost.setDate(nextPost.getDate() + 1);
     }
   }
-  
+
   return nextPost;
 }
 ```
 
-### 4. Monitor Engagement
+### 4. After Publishing — Store Post IDs
+
+```javascript
+async function markAsPublished(mission, platformPostIds, supabase) {
+  // platformPostIds = { instagram: 'ig_post_123', facebook: 'fb_post_456' }
+
+  await supabase
+    .from('buzz_missions')
+    .update({
+      post_ids: platformPostIds,
+      published_at: new Date().toISOString(),
+      status: 'published'
+    })
+    .eq('id', mission.id);
+
+  // Also update the central missions table
+  if (mission.mission_id) {
+    await supabase
+      .from('missions')
+      .update({ status: 'done', completed_at: new Date().toISOString() })
+      .eq('id', mission.mission_id);
+  }
+}
+```
+
+### 5. Monitor Engagement — Write to social_analytics
 
 ```javascript
 async function monitorEngagement(supabase) {
   // Run every 6 hours
-  
-  const { data: publishedPosts } = await supabase
-    .from('buzz_scheduled_posts')
+
+  // Get published buzz_missions from the last 7 days
+  const { data: publishedMissions } = await supabase
+    .from('buzz_missions')
     .select('*')
     .eq('status', 'published')
-    .gte('published_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)); // Last 7 days
-  
-  for (const post of publishedPosts || []) {
-    const metrics = await getMetrics(post.platform, post.post_id);
-    
-    // Metrics: likes, comments, shares, clicks, reach, impressions
-    await supabase
-      .from('buzz_engagement_metrics')
-      .insert([{
-        post_id: post.id,
-        platform: post.platform,
-        likes: metrics.likes,
-        comments: metrics.comments,
-        shares: metrics.shares,
-        clicks: metrics.clicks,
-        reach: metrics.reach,
-        impressions: metrics.impressions,
-        engagement_rate: ((metrics.likes + metrics.comments + metrics.shares) / metrics.impressions * 100).toFixed(2),
-        measured_at: new Date().toISOString()
-      }]);
+    .gte('published_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+  for (const mission of publishedMissions || []) {
+    const postIds = mission.post_ids || {};
+
+    for (const platform of mission.platforms || []) {
+      const postId = postIds[platform];
+      if (!postId) continue;
+
+      const metrics = await getMetrics(platform, postId);
+
+      // Upsert to social_analytics (UNIQUE on buzz_mission_id + platform)
+      // NOTE: engagement_rate is AUTO-CALCULATED by trigger — do NOT set it
+      await supabase
+        .from('social_analytics')
+        .upsert([{
+          buzz_mission_id: mission.id,
+          platform,
+          post_id: postId,
+          likes: metrics.likes,
+          comments: metrics.comments,
+          shares: metrics.shares,
+          saves: metrics.saves || 0,
+          reach: metrics.reach,
+          impressions: metrics.impressions,
+          video_views: metrics.video_views || 0,
+          // engagement_rate — omit! Trigger calculates: (likes+comments+shares+saves)/reach*100
+          profile_visits: metrics.profile_visits || 0,
+          link_clicks: metrics.link_clicks || 0,    // Note: column is "link_clicks" NOT "clicks"
+          follower_delta: metrics.follower_delta || 0,
+          check_count: 1,  // Will increment on subsequent upserts
+          last_check_at: new Date().toISOString()
+        }], {
+          onConflict: 'buzz_mission_id,platform'
+        });
+    }
   }
 }
 
@@ -278,33 +408,73 @@ async function getMetrics(platform, postId) {
 }
 ```
 
-### 5. Analyze Performance & Generate Insights
+### 6. Analyze Performance & Generate Weekly Insights
 
 ```javascript
 async function analyzePerformance(supabase) {
   // Weekly analysis (Friday 5 PM)
-  
+
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
   const { data: weeklyMetrics } = await supabase
-    .from('buzz_engagement_metrics')
-    .select('*')
-    .gte('measured_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-  
+    .from('social_analytics')
+    .select('*, buzz_missions(*)')
+    .gte('last_check_at', oneWeekAgo);
+
   const analysis = {
-    top_performing_posts: weeklyMetrics.sort((a, b) => b.engagement_rate - a.engagement_rate).slice(0, 3),
-    average_engagement_rate: (weeklyMetrics.reduce((sum, m) => sum + parseFloat(m.engagement_rate), 0) / weeklyMetrics.length).toFixed(2),
+    top_performing_posts: weeklyMetrics
+      .sort((a, b) => b.engagement_rate - a.engagement_rate)
+      .slice(0, 3),
+    average_engagement_rate: (
+      weeklyMetrics.reduce((sum, m) => sum + parseFloat(m.engagement_rate || 0), 0)
+      / weeklyMetrics.length
+    ).toFixed(2),
     platform_comparison: analyzePlatformPerformance(weeklyMetrics),
     content_type_winners: analyzeByContentType(weeklyMetrics),
     recommendations: generateRecommendations(weeklyMetrics)
   };
-  
+
+  // Save to content_performance_insights for historical tracking
+  const periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const periodEnd = new Date();
+
+  for (const platform of ['instagram', 'facebook', 'tiktok', 'all']) {
+    const platformMetrics = platform === 'all'
+      ? weeklyMetrics
+      : weeklyMetrics.filter(m => m.platform === platform);
+
+    if (platformMetrics.length === 0) continue;
+
+    await supabase
+      .from('content_performance_insights')
+      .upsert([{
+        period: 'weekly',
+        period_start: periodStart.toISOString().split('T')[0],
+        period_end: periodEnd.toISOString().split('T')[0],
+        business: 'techy_miramar',
+        platform,
+        total_posts: platformMetrics.length,
+        total_reach: platformMetrics.reduce((sum, m) => sum + (m.reach || 0), 0),
+        total_impressions: platformMetrics.reduce((sum, m) => sum + (m.impressions || 0), 0),
+        total_engagement: platformMetrics.reduce((sum, m) => sum + (m.likes + m.comments + m.shares + m.saves), 0),
+        avg_engagement_rate: parseFloat(
+          (platformMetrics.reduce((sum, m) => sum + parseFloat(m.engagement_rate || 0), 0) / platformMetrics.length).toFixed(2)
+        ),
+        best_post_id: platformMetrics.sort((a, b) => b.engagement_rate - a.engagement_rate)[0]?.buzz_mission_id,
+        worst_post_id: platformMetrics.sort((a, b) => a.engagement_rate - b.engagement_rate)[0]?.buzz_mission_id,
+        recommendations: analysis.recommendations ? [JSON.stringify(analysis.recommendations)] : [],
+        pixel_direction: analysis.recommendations?.increase_content_type
+          ? `Increase ${analysis.recommendations.increase_content_type} content based on engagement data`
+          : null
+      }], {
+        onConflict: 'business,platform,period,period_start'
+      });
+  }
+
   return analysis;
 }
 
 function generateRecommendations(metrics) {
-  // If "before_after" posts average 15% engagement, recommend more of them
-  // If TikTok has higher engagement, recommend increasing frequency
-  // If comments are high but shares are low, recommend better CTAs
-  
   return {
     increase_content_type: 'before_after',
     increase_platform: 'tiktok',
@@ -314,102 +484,111 @@ function generateRecommendations(metrics) {
 }
 ```
 
-### 6. Respond to Comments (TikTok)
+### 7. Respond to Comments (TikTok)
 
 ```javascript
 async function respondToComments(supabase) {
   // TikTok algorithm LOVES engagement—respond to every comment within 1 hour
-  
-  const { data: recentPosts } = await supabase
-    .from('buzz_scheduled_posts')
+
+  // Get recently published TikTok posts from buzz_missions
+  const { data: recentTikToks } = await supabase
+    .from('buzz_missions')
     .select('*')
-    .eq('platform', 'tiktok')
-    .gte('published_at', new Date(Date.now() - 24 * 60 * 60 * 1000));
-  
-  for (const post of recentPosts || []) {
-    const comments = await getTikTokComments(post.post_id);
-    
+    .contains('platforms', ['tiktok'])
+    .eq('status', 'published')
+    .gte('published_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+  for (const mission of recentTikToks || []) {
+    const tiktokPostId = mission.post_ids?.tiktok;
+    if (!tiktokPostId) continue;
+
+    // Get comments from TikTok API (no local comment table — track via API)
+    const comments = await getTikTokComments(tiktokPostId);
+
     for (const comment of comments) {
-      if (comment.replied === false) {
-        // Generate contextual response
-        const response = await generateCommentReply(post.caption, comment.text);
-        
-        await postCommentReply(post.post_id, comment.id, response);
-        
-        // Mark as replied
+      // TikTok API provides reply status — check if already replied
+      if (!comment.has_reply_from_page) {
+        const response = await generateCommentReply(mission.tiktok_caption, comment.text);
+        await postCommentReply(tiktokPostId, comment.id, response);
+
+        // Log to agent_activity for tracking
         await supabase
-          .from('tiktok_comments')
-          .update({ replied: true, reply_text: response })
-          .eq('id', comment.id);
+          .from('agent_activity')
+          .insert([{
+            agent_id: 'buzz',
+            activity_type: 'comment_reply',
+            mission_id: mission.mission_id,
+            message: `Replied to TikTok comment: "${comment.text.substring(0, 50)}..."`,
+            severity: 'info'
+          }]);
       }
     }
   }
 }
 
 async function generateCommentReply(postCaption, commentText) {
-  // AI-generated contextual reply
-  // Examples:
-  // Comment: "How much does a repair like this cost?"
-  // Reply: "Great question! Costs vary by device. DM us your details and we'll give you an instant quote! 📞"
-  
   const reply = await generateText(`
     Post was about: ${postCaption}
     User comment: "${commentText}"
-    
-    Generate a brief, friendly TikTok comment reply (1 sentence max). 
+
+    Generate a brief, friendly TikTok comment reply (1 sentence max).
     Include emoji. If asking for contact, suggest DM or phone call.
   `);
-  
+
   return reply;
 }
 ```
 
-### 7. Weekly Performance Report
+### 8. Weekly Performance Report
 
 ```javascript
 async function generateWeeklyReport(supabase) {
   // Every Friday 5 PM
-  
+
   const analysis = await analyzePerformance(supabase);
-  
-  const reportMission = {
-    agent_id: 'buzz',
-    status: 'review',
-    assigned_to: 'shuki',
-    title: "Buzz's Weekly Social Media Performance Report",
-    metadata: {
-      report: {
-        week_of: getWeekOf(new Date()),
-        posts_published: analysis.top_performing_posts.length,
-        total_reach: analysis.total_reach,
-        total_impressions: analysis.total_impressions,
+
+  // Create a mission for the report (visible in dashboard)
+  const { data: reportMission } = await supabase
+    .from('missions')
+    .insert([{
+      agent_id: 'buzz',
+      status: 'review',         // Goes to review column
+      priority: 'normal',
+      title: "Buzz Weekly Social Media Report — " + new Date().toISOString().split('T')[0],
+      description: `Avg engagement: ${analysis.average_engagement_rate}% | Top content: ${analysis.recommendations?.increase_content_type || 'mixed'}`,
+      metadata: {
+        report_type: 'weekly_social',
+        week_of: new Date().toISOString().split('T')[0],
         average_engagement_rate: analysis.average_engagement_rate,
         platform_breakdown: analysis.platform_comparison,
-        top_3_posts: analysis.top_performing_posts,
-        content_recommendations: analysis.recommendations,
-        trends_detected: [
-          { trend: 'Before/after content performing 25% better', action: 'Increase frequency' },
-          { trend: 'TikTok comments highest engagement', action: 'Post daily on TikTok' },
-          { trend: 'Evening posts (6-8 PM) get 3x reach', action: 'Avoid posting before 6 PM' }
-        ]
+        top_3_posts: analysis.top_performing_posts.map(p => ({
+          platform: p.platform,
+          engagement_rate: p.engagement_rate,
+          buzz_mission_id: p.buzz_mission_id
+        })),
+        recommendations: analysis.recommendations
       }
-    }
-  };
-  
-  // Insert report as mission
-  await supabase.from('missions').insert([reportMission]);
-  
+    }])
+    .select()
+    .single();
+
   // Telegram alert
-  await telegram.sendMessage(SHUKI_TELEGRAM_ID, `
-    📊 Buzz's Weekly Report Ready
-    
-    📈 ${analysis.total_reach} reach this week
-    💬 ${analysis.average_engagement_rate}% avg engagement
-    
-    Top post: ${analysis.top_performing_posts[0].title} (${analysis.top_performing_posts[0].engagement_rate}% engagement)
-    
-    Recommendation: ${analysis.recommendations.increase_content_type} content is winning—make more!
-  `);
+  await sendTelegramNotification({
+    mission_id: reportMission?.id,
+    message: `📊 Buzz Weekly Report\n📈 ${analysis.average_engagement_rate}% avg engagement\nTop: ${analysis.recommendations?.increase_content_type} content`,
+    priority: 'normal'
+  }, supabase);
+}
+
+async function sendTelegramNotification({ mission_id, message, priority }, supabase) {
+  await supabase
+    .from('telegram_notifications')
+    .insert([{
+      mission_id,
+      message,
+      priority: priority || 'normal',
+      actions: '{"view_report": true}'
+    }]);
 }
 ```
 
@@ -428,6 +607,18 @@ async function generateWeeklyReport(supabase) {
 **Comment responses (TikTok):** Real-time (within 1 hour of publication)
 
 **Weekly report:** Every Friday 5 PM
+
+**Heartbeat:** Every 5 minutes
+
+```javascript
+// Heartbeat — keeps agent status visible in dashboard
+async function heartbeat(supabase) {
+  await supabase
+    .from('agents')
+    .update({ status: 'active', last_heartbeat: new Date().toISOString() })
+    .eq('id', 'buzz');
+}
+```
 
 **Total runtime per mission:** ~5 minutes per post (scheduling + optimization)
 
@@ -452,27 +643,58 @@ Platform: Instagram Feed
 Link in bio for DM!
 ```
 
+All notifications queued via `telegram_notifications` table:
+
+```javascript
+await supabase
+  .from('telegram_notifications')
+  .insert([{
+    mission_id: mission.mission_id,
+    message: '✅ Instagram post scheduled — "Your MacBook is bricked? 💻" — Wed 6 PM ET',
+    priority: 'normal',
+    actions: '{"view": true}'
+  }]);
+```
+
 ---
 
 ## FAILURE HANDLING
 
 If Buzz encounters errors:
-1. **API rate limit:** Queue post for later
+1. **API rate limit:** Queue post for later, log to `agent_activity` with severity 'warning'
 2. **Image upload failed:** Notify Pixel for re-enhancement
-3. **TikTok API down:** Queue to Telegram for manual posting
+3. **TikTok API down:** Set mission status to `ready_for_manual_post`, queue to Telegram
 4. **Comment retrieval failed:** Skip comment responses, retry in 1h
+5. **Supabase insert fails:** Log error to `agent_activity` with full payload, retry once
+
+```javascript
+// Log errors to agent_activity
+await supabase
+  .from('agent_activity')
+  .insert([{
+    agent_id: 'buzz',
+    activity_type: 'error',
+    mission_id: mission?.mission_id || null,
+    message: `Meta API rate limited — scheduling retry in 5 min`,
+    severity: 'warning'
+  }]);
+```
 
 ---
 
 ## TESTING CHECKLIST
 
-- [ ] Mission polling works (detects new buzz_missions)
+- [ ] Mission polling works (detects new buzz_missions with status='pending')
 - [ ] Copy optimized per platform (Facebook ≠ TikTok tone)
 - [ ] Posts scheduled at correct times (verified in Meta/TikTok dashboards)
-- [ ] Engagement metrics collected (6h polling)
-- [ ] Weekly report generated + sent
-- [ ] TikTok comments detected + replied within 1h
-- [ ] Telegram alerts sent (scheduled, underperforming, weekly)
+- [ ] `buzz_missions.scheduled_at` and `status='scheduled'` set correctly
+- [ ] After publishing, `post_ids` JSONB populated + `status='published'`
+- [ ] Engagement metrics written to `social_analytics` (NOT buzz_engagement_metrics)
+- [ ] `engagement_rate` auto-calculated by trigger (not manually set)
+- [ ] Weekly report saved to `content_performance_insights`
+- [ ] TikTok comments replied via API (no local tiktok_comments table needed)
+- [ ] Telegram notifications queued to `telegram_notifications` table
+- [ ] Heartbeat updating `agents` table every 5 min
 - [ ] 10%+ avg engagement rate achieved
 
 ---
@@ -480,7 +702,7 @@ If Buzz encounters errors:
 ## DEPLOYMENT
 
 Deploy Buzz as an OpenClaw sub-agent with:
-1. System prompt: This file
+1. System prompt: This file + `buzz_system_prompt.md` (brand guide & detailed copy rules)
 2. Schedule: Every 30 minutes polling + 6h engagement checks + Friday 5 PM report
 3. Environment: Meta Graph API token, TikTok API token, Supabase URL/key, Telegram token
 4. Runtime: 10 minutes max per cycle
@@ -502,7 +724,8 @@ Buzz is working if:
 - ✅ Posts scheduled at optimal times (verified manual check)
 - ✅ 10%+ average engagement rate on all platforms
 - ✅ TikTok comments responded to within 1 hour
-- ✅ Weekly report auto-generated + accurate
-- ✅ Telegram alerts sent for all key milestones
-- ✅ Engagement metrics collected + trending analysis accurate
+- ✅ Weekly report auto-generated to `content_performance_insights` + accurate
+- ✅ Telegram alerts sent for all key milestones via `telegram_notifications`
+- ✅ Engagement metrics in `social_analytics` with auto-calculated engagement_rate
 - ✅ Platform-specific copy optimization evident (tone/length variations)
+- ✅ Agent heartbeat visible in dashboard

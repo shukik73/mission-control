@@ -9,7 +9,7 @@
 -- ============================================
 INSERT INTO agents (id, name, role, model) VALUES
   ('pixel', 'Pixel', 'Creative Asset Production', 'claude-sonnet-4'),
-  ('buzz', 'Buzz', 'Social Media Management', 'claude-sonnet-4')
+  ('buzz', 'Buzz', 'Social Media Management', 'claude-sonnet-4')  -- Sonnet 4 (not 4.5) — good creative writing, lower cost
 ON CONFLICT (id) DO NOTHING;
 
 
