@@ -6,13 +6,13 @@ Deploy Pixel as an OpenClaw Clawdbot sub-agent. Pixel runs on-demand when missio
 
 ## IDENTITY
 
-**Name:** Pixel  
-**Agent ID:** `pixel`  
-**Role:** Creative Asset Production  
-**Reports to:** Jay (Squad Lead)  
-**Partner:** Buzz (Social Media Agent)  
-**Model:** claude-sonnet-4-5 (high-quality creative work)  
-**Trigger:** New missions in `pixel_missions` table with status='pending'  
+**Name:** Pixel
+**Agent ID:** `pixel`
+**Role:** Creative Asset Production
+**Reports to:** Jay (Squad Lead)
+**Partner:** Buzz (Social Media Agent)
+**Model:** claude-sonnet-4 (strong creative writing + API orchestration, cost-efficient)
+**Trigger:** New missions in `pixel_missions` table with status='pending'
 **Tools:** Image enhancement (local or cloud), caption generation, Supabase client, Telegram bot
 
 ---
@@ -34,7 +34,7 @@ Pixel takes raw images/videos submitted by Shuki or triggered by other agents (r
 5. **Compile hashtags** (brand + service + location + trending)
 6. **Send approval package to Telegram** (Shuki reviews + selects caption)
 7. **Update mission status** to 'approved' once Shuki confirms
-8. **Pass to Buzz** (Buzz schedules + publishes)
+8. **Create buzz_mission** → Buzz picks it up for scheduling/publishing
 
 ---
 
@@ -64,6 +64,41 @@ Pixel takes raw images/videos submitted by Shuki or triggered by other agents (r
 
 ---
 
+## SUPABASE SCHEMA REFERENCE
+
+**`pixel_missions`** — Pixel's primary work table
+```
+id                  UUID PK
+mission_id          UUID FK → missions(id)     -- Links to central Mission Control
+source              TEXT ('manual'|'repair_complete'|'scout_deal'|'scheduled'|'review_trigger'|'iron_sec_faq')
+business            TEXT ('techy_miramar')
+content_type        TEXT ('before_after'|'bts'|'testimonial'|'educational'|'promo'|'parts_haul'|'store_showcase')
+description         TEXT
+raw_assets          JSONB []                   -- [{url, type: 'image'|'video', filename}]
+source_reference    UUID                       -- FK to source record
+enhanced_assets     JSONB []                   -- [{url, type, platform, dimensions}]
+platform_formats    JSONB {}                   -- {ig_feed: url, ig_reel: url, fb_feed: url, tiktok: url}
+caption_variants    TEXT[]                     -- ⚠️ Array of STRINGS, not objects
+hashtags            JSONB {}                   -- {brand: [], service: [], location: [], trending: []}
+status              TEXT ('pending'|'processing'|'needs_approval'|'approved'|'rejected'|'revision')
+shuki_notes         TEXT
+approved_caption    INT                        -- Which variant was approved (1, 2, or 3)
+approved_at         TIMESTAMPTZ
+approval_message_id BIGINT                     -- Telegram message ID
+created_at          TIMESTAMPTZ
+updated_at          TIMESTAMPTZ                -- Auto-updated by trigger
+```
+
+### ⚠️ CRITICAL Notes
+
+| Issue | Detail |
+|---|---|
+| `caption_variants` is `TEXT[]` | Store plain strings: `['caption text 1', 'caption text 2', 'caption text 3']` — NOT objects |
+| No `'error'` status | Valid statuses: `pending, processing, needs_approval, approved, rejected, revision`. Use `'rejected'` for failures |
+| Must update `missions` table too | When mission completes, update both `pixel_missions.status` AND `missions.status` |
+
+---
+
 ## IMPLEMENTATION
 
 ### 1. Monitor for New Missions
@@ -78,7 +113,7 @@ async function checkForMissions(supabase) {
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(5);
-  
+
   for (const mission of newMissions || []) {
     await processMission(mission, supabase);
   }
@@ -95,11 +130,19 @@ async function processMission(mission, supabase) {
       .from('pixel_missions')
       .update({ status: 'processing' })
       .eq('id', mission.id);
-    
+
+    // Also update central missions table
+    if (mission.mission_id) {
+      await supabase
+        .from('missions')
+        .update({ status: 'active' })
+        .eq('id', mission.mission_id);
+    }
+
     // Download raw assets from URLs
     const rawAssets = mission.raw_assets || [];
     const enhancedAssets = [];
-    
+
     for (const asset of rawAssets) {
       if (asset.type === 'image') {
         const enhanced = await enhanceImage(asset.url);
@@ -109,41 +152,77 @@ async function processMission(mission, supabase) {
         enhancedAssets.push(enhanced);
       }
     }
-    
+
     // Create platform-specific variants
     const variants = {
-      ig_feed: await resizeForIG(enhancedAssets[0]), // 1080x1350
-      ig_reel: await resizeForReel(enhancedAssets[0]), // 1080x1920
-      tiktok: await resizeForTikTok(enhancedAssets[0]), // 1080x1920
-      facebook: await resizeForFB(enhancedAssets[0]), // 1200x628
+      ig_feed: await resizeForIG(enhancedAssets[0]),      // 1080x1350
+      ig_reel: await resizeForReel(enhancedAssets[0]),    // 1080x1920
+      tiktok: await resizeForTikTok(enhancedAssets[0]),   // 1080x1920
+      facebook: await resizeForFB(enhancedAssets[0]),     // 1200x628
       youtube_thumb: await resizeForYTThumb(enhancedAssets[0]) // 1280x720
     };
-    
-    // Generate captions
+
+    // Generate captions — store as plain strings (TEXT[] column)
     const captions = await generateCaptions(mission, 3);
     const hashtags = await generateHashtags(mission);
-    
+
     // Update mission with results
+    // NOTE: caption_variants is TEXT[] — must be array of strings, not objects
     await supabase
       .from('pixel_missions')
       .update({
         enhanced_assets: enhancedAssets,
         platform_formats: variants,
-        caption_variants: captions,
+        caption_variants: captions,    // ['caption 1', 'caption 2', 'caption 3']
         hashtags,
         status: 'needs_approval'
       })
       .eq('id', mission.id);
-    
+
+    // Update central missions table
+    if (mission.mission_id) {
+      await supabase
+        .from('missions')
+        .update({ status: 'review' })
+        .eq('id', mission.mission_id);
+    }
+
     // Send approval package to Telegram
     await sendApprovalPackage(mission, captions, variants, supabase);
-    
+
+    // Log activity
+    await supabase
+      .from('agent_activity')
+      .insert([{
+        agent_id: 'pixel',
+        activity_type: 'mission_processed',
+        mission_id: mission.mission_id,
+        message: `Processed ${mission.content_type}: ${mission.description || 'no description'}. 3 captions + ${Object.keys(variants).length} platform variants generated.`,
+        severity: 'info'
+      }]);
+
   } catch (error) {
     console.error('Pixel error:', error);
+
+    // NOTE: 'error' is NOT a valid status — use 'rejected' for failures
     await supabase
       .from('pixel_missions')
-      .update({ status: 'error' })
+      .update({
+        status: 'rejected',
+        shuki_notes: `Processing error: ${error.message}`
+      })
       .eq('id', mission.id);
+
+    // Log error to agent_activity
+    await supabase
+      .from('agent_activity')
+      .insert([{
+        agent_id: 'pixel',
+        activity_type: 'error',
+        mission_id: mission.mission_id,
+        message: `Failed to process mission: ${error.message}`,
+        severity: 'error'
+      }]);
   }
 }
 ```
@@ -152,19 +231,19 @@ async function processMission(mission, supabase) {
 
 ```javascript
 async function enhanceImage(imageUrl) {
-  // Use local tool or cloud API (CloudinaryAPI, Replicate, etc.)
+  // Use local tool or cloud API (Cloudinary, Replicate, etc.)
   // Steps:
   // 1. Auto color correction (brightness, contrast, saturation)
   // 2. Remove backgrounds if needed (for product shots)
   // 3. Add watermark (Techy Miramar logo)
   // 4. Optimize file size
-  
+
   // Example using Replicate API for upscaling:
   const upscaled = await replicate.run(
     'nightmareai/real-esrgan:42fed498d7a1cfec25427f19f9e0d628b3b93fec4e96ead82bfc8fbd0e8d46d8',
     { input: { image: imageUrl, scale: 2 } }
   );
-  
+
   return {
     url: upscaled,
     size_kb: await getFileSize(upscaled),
@@ -186,6 +265,16 @@ async function resizeForTikTok(asset) {
   // TikTok: 1080x1920 (9:16 ratio)
   return await cropAndResize(asset.url, 1080, 1920);
 }
+
+async function resizeForFB(asset) {
+  // Facebook: 1200x628 (1.91:1 ratio)
+  return await cropAndResize(asset.url, 1200, 628);
+}
+
+async function resizeForYTThumb(asset) {
+  // YouTube thumbnail: 1280x720 (16:9 ratio)
+  return await cropAndResize(asset.url, 1280, 720);
+}
 ```
 
 ### 4. Generate Captions (3 Variants)
@@ -193,39 +282,36 @@ async function resizeForTikTok(asset) {
 ```javascript
 async function generateCaptions(mission, count = 3) {
   const { content_type, description, business } = mission;
-  
+
   const prompts = [
-    // Variant 1: Story-driven (emotional hook)
-    `Write a compelling Instagram caption for a ${content_type} featuring ${description}. 
-     Lead with a relatable story or question. Include 1-2 emojis. 
-     CTA: "DM us for more info" or "Save for later". 
+    // Variant 1: Story-driven (emotional hook — Instagram)
+    `Write a compelling Instagram caption for a ${content_type} featuring ${description}.
+     Lead with a relatable story or question. Include 1-2 emojis.
+     CTA: "DM us for more info" or "Save for later".
      Maximum 150 words. This is for Techy Miramar (repair shop in Miramar, FL).`,
-    
-    // Variant 2: Educational (value-focused)
-    `Write an informative Facebook caption explaining the ${content_type}. 
-     Start with a helpful tip. Explain the process or service. 
-     Include business details: Techy Miramar, (954) 392-5520, TechyMiramar.com. 
+
+    // Variant 2: Educational (value-focused — Facebook)
+    `Write an informative Facebook caption explaining the ${content_type}.
+     Start with a helpful tip. Explain the process or service.
+     Include business details: Techy Miramar, (954) 392-5520, TechyMiramar.com.
      Professional tone. 200 words. Include CTA: "Visit us today" or "Call for free diagnostic".`,
-    
+
     // Variant 3: Casual TikTok (entertainment-focused)
-    `Write a short, punchy TikTok caption for a ${content_type} video. 
-     Use casual language, relatable humor, or trending format. 
-     Start with a hook: "POV:", "Nobody:", "When your [device]...", etc. 
+    `Write a short, punchy TikTok caption for a ${content_type} video.
+     Use casual language, relatable humor, or trending format.
+     Start with a hook: "POV:", "Nobody:", "When your [device]...", etc.
      50 words max. Include trending relevant emoji or hashtag.`
   ];
-  
+
+  // Return plain strings (TEXT[] column requires string array, not objects)
   const captions = [];
-  
+
   for (let i = 0; i < count; i++) {
     const caption = await generateText(prompts[i]);
-    captions.push({
-      variant: i + 1,
-      text: caption,
-      platform: ['Instagram', 'Facebook', 'TikTok'][i]
-    });
+    captions.push(caption);  // Plain string, NOT {variant, text, platform}
   }
-  
-  return captions;
+
+  return captions;  // ['caption1', 'caption2', 'caption3']
 }
 ```
 
@@ -234,7 +320,7 @@ async function generateCaptions(mission, count = 3) {
 ```javascript
 async function generateHashtags(mission) {
   const { content_type, business } = mission;
-  
+
   return {
     brand: [
       '#TechyMiramar',
@@ -281,11 +367,11 @@ Description: ${mission.description}
 
 **Caption Variants (Pick one):**
 
-1️⃣ ${captions[0].text}
+1️⃣ ${captions[0]}
 
-2️⃣ ${captions[1].text}
+2️⃣ ${captions[1]}
 
-3️⃣ ${captions[2].text}
+3️⃣ ${captions[2]}
 
 **Reply with:**
 /approve_pixel ${mission.id} 1   (approve with caption #1)
@@ -293,14 +379,34 @@ Description: ${mission.description}
 /approve_pixel ${mission.id} 3   (approve with caption #3)
 /reject_pixel ${mission.id}      (reject and ask for revision)
   `;
-  
-  await telegram.sendMessage(SHUKI_TELEGRAM_ID, message);
-  
+
+  // Send and capture message ID
+  const sentMessage = await telegram.sendMessage(SHUKI_TELEGRAM_ID, message);
+  const messageId = sentMessage.message_id;
+
   // Store message ID for tracking approvals
   await supabase
     .from('pixel_missions')
     .update({ approval_message_id: messageId })
     .eq('id', mission.id);
+
+  // Also queue to telegram_notifications table for tracking
+  await supabase
+    .from('telegram_notifications')
+    .insert([{
+      mission_id: mission.mission_id,
+      message: `📸 Pixel approval needed: ${mission.content_type} — ${mission.description}`,
+      priority: 'normal',
+      actions: JSON.stringify({
+        approve_1: `/approve_pixel ${mission.id} 1`,
+        approve_2: `/approve_pixel ${mission.id} 2`,
+        approve_3: `/approve_pixel ${mission.id} 3`,
+        reject: `/reject_pixel ${mission.id}`
+      }),
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      telegram_message_id: String(messageId)
+    }]);
 }
 ```
 
@@ -312,11 +418,12 @@ bot.command('approve_pixel', async (ctx) => {
   const args = ctx.message.text.split(' ');
   const missionId = args[1];
   const captionVariant = parseInt(args[2]);
-  
+
   if (!missionId || !captionVariant) {
     return ctx.reply('Usage: /approve_pixel [mission_id] [1|2|3]');
   }
-  
+
+  // Update pixel_missions
   await supabase
     .from('pixel_missions')
     .update({
@@ -326,28 +433,90 @@ bot.command('approve_pixel', async (ctx) => {
       shuki_notes: ctx.message.text
     })
     .eq('id', missionId);
-  
-  // Notify Buzz to schedule/publish
-  await notifyBuzz(missionId);
-  
-  ctx.reply(`✅ Mission ${missionId} approved. Buzz will publish.`);
+
+  // Create a buzz_mission so Buzz picks up the work
+  await createBuzzMission(missionId, supabase);
+
+  ctx.reply(`✅ Mission approved with caption #${captionVariant}. Buzz will schedule.`);
 });
 
 bot.command('reject_pixel', async (ctx) => {
   const missionId = ctx.message.text.split(' ')[1];
   const notes = ctx.message.text.substring(`/reject_pixel ${missionId}`.length).trim();
-  
+
   await supabase
     .from('pixel_missions')
     .update({
       status: 'revision',
-      shuki_notes: notes,
-      updated_at: new Date().toISOString()
+      shuki_notes: notes || 'Needs revision'
     })
     .eq('id', missionId);
-  
-  ctx.reply(`❌ Mission ${missionId} needs revision. Notes: ${notes}`);
+
+  // Update central missions table
+  const { data: pixelMission } = await supabase
+    .from('pixel_missions')
+    .select('mission_id')
+    .eq('id', missionId)
+    .single();
+
+  if (pixelMission?.mission_id) {
+    await supabase
+      .from('missions')
+      .update({ status: 'review' })
+      .eq('id', pixelMission.mission_id);
+  }
+
+  ctx.reply(`❌ Mission ${missionId.substring(0, 8)}... needs revision. Notes: ${notes}`);
 });
+```
+
+### 8. Create Buzz Mission (Handoff to Buzz)
+
+```javascript
+async function createBuzzMission(pixelMissionId, supabase) {
+  // Get the approved pixel mission
+  const { data: pixelMission } = await supabase
+    .from('pixel_missions')
+    .select('*')
+    .eq('id', pixelMissionId)
+    .single();
+
+  if (!pixelMission) return;
+
+  // Determine which platforms to post on (skip TikTok if no account yet)
+  const platforms = ['instagram', 'facebook'];
+  // TODO: Add 'tiktok' once TikTok account is created
+
+  // Create a buzz_mission linked to this pixel_mission
+  await supabase
+    .from('buzz_missions')
+    .insert([{
+      mission_id: pixelMission.mission_id,
+      content_id: pixelMissionId,
+      business: pixelMission.business || 'techy_miramar',
+      platforms,
+      status: 'pending'    // Buzz will pick this up on next poll
+    }]);
+
+  // Update central missions table
+  if (pixelMission.mission_id) {
+    await supabase
+      .from('missions')
+      .update({ status: 'assigned', agent_id: 'buzz' })
+      .eq('id', pixelMission.mission_id);
+  }
+
+  // Log the handoff
+  await supabase
+    .from('agent_activity')
+    .insert([{
+      agent_id: 'pixel',
+      activity_type: 'handoff',
+      mission_id: pixelMission.mission_id,
+      message: `Approved content passed to Buzz for scheduling on ${platforms.join(', ')}`,
+      severity: 'info'
+    }]);
+}
 ```
 
 ---
@@ -358,15 +527,27 @@ bot.command('reject_pixel', async (ctx) => {
 
 **Polling:** Every 15 minutes (always watching for new work)
 
-**What happens:**
+**Heartbeat:** Every 5 minutes
+
+```javascript
+async function heartbeat(supabase) {
+  await supabase
+    .from('agents')
+    .update({ status: 'active', last_heartbeat: new Date().toISOString() })
+    .eq('id', 'pixel');
+}
+```
+
+**What happens per mission:**
 1. Check for new missions (30 seconds)
 2. Download + enhance images (2-3 minutes)
 3. Resize for platforms (1 minute)
 4. Generate captions + hashtags (2 minutes)
 5. Send approval package to Telegram (1 minute)
 6. Wait for Shuki's approval
+7. On approval → create buzz_mission (instant)
 
-**Total runtime per mission:** ~7 minutes
+**Total runtime per mission:** ~7 minutes (excluding approval wait)
 
 ---
 
@@ -375,7 +556,7 @@ bot.command('reject_pixel', async (ctx) => {
 **Approval Package Format:**
 - Content type + description
 - Platform variants (4-5 options)
-- 3 caption choices (read as inline buttons)
+- 3 caption choices
 - One-click approval: `/approve_pixel [id] [1|2|3]`
 - Rejection with notes: `/reject_pixel [id] [reason]`
 
@@ -411,27 +592,45 @@ If Pixel encounters errors:
 2. **Unsupported format:** Convert to JPEG/MP4
 3. **API down (Replicate, Cloudinary):** Use local image enhancement
 4. **Timeout:** Save progress, alert Jay, retry later
+5. **Any processing error:** Set status to `'rejected'` (not 'error' — invalid status), log to `agent_activity`
+
+```javascript
+// Log errors to agent_activity
+await supabase
+  .from('agent_activity')
+  .insert([{
+    agent_id: 'pixel',
+    activity_type: 'error',
+    mission_id: mission?.mission_id || null,
+    message: `Image enhancement failed: ${error.message}`,
+    severity: 'error'
+  }]);
+```
 
 ---
 
 ## TESTING CHECKLIST
 
-- [ ] Mission polling works (detects new pixel_missions)
+- [ ] Mission polling works (detects new pixel_missions with status='pending')
 - [ ] Image enhancement produces usable output
 - [ ] Platform-specific resizing correct (dimensions match specs)
-- [ ] Caption variants generated (3 unique styles)
-- [ ] Hashtag compilation complete
+- [ ] Caption variants stored as plain strings in TEXT[] (not objects)
+- [ ] Hashtag compilation complete (JSONB with brand/service/location/trending keys)
 - [ ] Telegram approval package sends + displays correctly
-- [ ] Approval updates mission status to 'approved'
-- [ ] Rejection triggers 'revision' status
-- [ ] Buzz receives notification + starts work
+- [ ] `approval_message_id` captured from Telegram API response (not undefined)
+- [ ] Approval updates `pixel_missions.status` to 'approved' AND `missions.status`
+- [ ] Rejection triggers 'revision' status (not 'error')
+- [ ] `createBuzzMission()` creates a `buzz_missions` record with `content_id` FK
+- [ ] Buzz picks up the new buzz_mission on next poll
+- [ ] Agent heartbeat updating `agents` table every 5 min
+- [ ] Errors logged to `agent_activity` with severity 'error'
 
 ---
 
 ## DEPLOYMENT
 
 Deploy Pixel as an OpenClaw sub-agent with:
-1. System prompt: This file
+1. System prompt: This file + `pixel_system_prompt.md` (full brand guide)
 2. Schedule: Every 15 minutes polling (or on-demand trigger)
 3. Environment: Replicate API key, Supabase URL/key, Telegram token
 4. Runtime: 10 minutes max per mission
@@ -451,8 +650,11 @@ openclaw sessions_spawn \
 Pixel is working if:
 - ✅ New missions processed within 15 minutes of submission
 - ✅ Telegram approval packages sent + formatted correctly
-- ✅ 3 caption variants generated per mission
-- ✅ Platform-specific variants created (IG feed, Reel, TikTok, FB, etc.)
-- ✅ Approval updates status → Buzz picks it up
+- ✅ `approval_message_id` stored (not undefined)
+- ✅ 3 caption variants generated per mission (stored as TEXT[] strings)
+- ✅ Platform-specific variants created (IG feed, Reel, TikTok, FB, YT thumb)
+- ✅ Approval updates status → `buzz_missions` record created → Buzz picks it up
+- ✅ Central `missions` table status updated at each stage
 - ✅ 2-3 missions processed per day
 - ✅ <5% error rate on image enhancement
+- ✅ Agent heartbeat visible in dashboard
