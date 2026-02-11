@@ -6,6 +6,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'jay',
     name: 'Jay',
+    role: 'Squad Lead & Execution',
     status: 'active',
     lastActive: new Date(NOW.getTime() - 2 * 60000),
     dealsFound: 0,
@@ -15,6 +16,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'kai',
     name: 'Kai',
+    role: 'Assistant',
     status: 'active',
     lastActive: new Date(NOW.getTime() - 5 * 60000),
     dealsFound: 0,
@@ -24,6 +26,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'scout',
     name: 'Scout Baz',
+    role: 'eBay/Amazon Sourcing',
     status: 'active',
     lastActive: new Date(NOW.getTime() - 8 * 60000),
     dealsFound: 124,
@@ -33,6 +36,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'pixel',
     name: 'Pixel',
+    role: 'Creative Asset Production',
     status: 'waiting',
     lastActive: new Date(NOW.getTime() - 30 * 60000),
     dealsFound: 0,
@@ -42,6 +46,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'emilio',
     name: 'Igor',
+    role: 'Cold Email Campaigns',
     status: 'waiting',
     lastActive: new Date(NOW.getTime() - 45 * 60000),
     dealsFound: 15,
@@ -51,6 +56,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'iron-sec',
     name: 'Secretary',
+    role: 'Calls & Customer Mgmt',
     status: 'active',
     lastActive: new Date(NOW.getTime() - 10 * 60000),
     dealsFound: 82,
@@ -60,6 +66,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'hamoriko',
     name: 'Hamoriko Producer',
+    role: 'YouTube Content',
     status: 'active',
     lastActive: new Date(NOW.getTime() - 2 * 60000),
     dealsFound: 340,
@@ -69,6 +76,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'buzz',
     name: 'Buzz',
+    role: 'Social Media Management',
     status: 'waiting',
     lastActive: new Date(NOW.getTime() - 60 * 60000),
     dealsFound: 0,
@@ -78,6 +86,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'valet',
     name: 'Valet',
+    role: 'Scheduling & Calendar',
     status: 'paused',
     lastActive: new Date(NOW.getTime() - 9999 * 60000),
     dealsFound: 0,
@@ -87,6 +96,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'radar',
     name: 'Radar',
+    role: 'Competitive Intel',
     status: 'paused',
     lastActive: new Date(NOW.getTime() - 9999 * 60000),
     dealsFound: 0,
@@ -96,6 +106,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'penny',
     name: 'Penny',
+    role: 'Bookkeeping & Finance',
     status: 'paused',
     lastActive: new Date(NOW.getTime() - 9999 * 60000),
     dealsFound: 0,
@@ -105,6 +116,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'echo',
     name: 'Echo',
+    role: 'Reviews & Feedback',
     status: 'paused',
     lastActive: new Date(NOW.getTime() - 9999 * 60000),
     dealsFound: 0,
@@ -114,6 +126,7 @@ export const MOCK_AGENTS: Agent[] = [
   {
     id: 'developer',
     name: 'Developer',
+    role: 'Full-Stack Dev & Automation',
     status: 'paused',
     lastActive: new Date(NOW.getTime() - 9999 * 60000),
     dealsFound: 0,

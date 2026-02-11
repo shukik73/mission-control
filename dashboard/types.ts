@@ -38,7 +38,8 @@ export interface Deal {
 export interface Agent {
   id: string;
   name: string;
-  status: 'active' | 'waiting' | 'paused'; 
+  role: string;
+  status: 'active' | 'waiting' | 'paused';
   lastActive: Date;
   dealsFound: number;
   dealsPending: number;

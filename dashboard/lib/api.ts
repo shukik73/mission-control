@@ -85,6 +85,7 @@ function rowToDeal(row: ScoutDealRow): Deal {
 interface AgentRow {
   id: string;
   name: string;
+  role: string;
   status: string;
   last_heartbeat: string | null;
   metadata: Record<string, unknown>;
@@ -94,6 +95,7 @@ function rowToAgent(row: AgentRow): Agent {
   return {
     id: row.id,
     name: row.name,
+    role: row.role || '',
     status: row.status === 'active' ? 'active' : row.status === 'idle' ? 'waiting' : 'paused',
     lastActive: row.last_heartbeat ? new Date(row.last_heartbeat) : new Date(),
     dealsFound: 0,

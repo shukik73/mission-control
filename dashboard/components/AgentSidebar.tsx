@@ -70,15 +70,19 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents }) => {
 
             return (
                 <div key={agent.id} className="bg-surfaceHighlight hover:bg-accent border border-border rounded-lg p-3 transition-colors group cursor-default">
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center">
-                            <div className={`w-2 h-2 rounded-full mr-2 ${statusColor.replace('text-', 'bg-')} shadow-[0_0_8px_rgba(0,0,0,0.5)]`} />
+                            <div className={`w-2 h-2 rounded-full mr-2 shrink-0 ${statusColor.replace('text-', 'bg-')} shadow-[0_0_8px_rgba(0,0,0,0.5)]`} />
                             <span className="text-sm font-medium text-primary">{agent.name}</span>
                         </div>
-                        <div className={`${statusColor}`} title="Status">
+                        <div className={`${statusColor} shrink-0`} title="Status">
                             {getStatusIcon(agent.lastActive)}
                         </div>
                     </div>
+
+                    {agent.role && (
+                        <p className="text-[10px] text-secondary ml-4 mb-2 truncate">{agent.role}</p>
+                    )}
 
                     <div className="flex justify-between text-xs text-secondary font-mono mb-2">
                         <span>{agent.dealsFound} found</span>
