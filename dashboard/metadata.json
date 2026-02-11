@@ -1,0 +1,5 @@
+{
+  "name": "Mission Control Dashboard",
+  "description": "A high-performance, dark-themed Kanban dashboard for managing arbitrage deals and agent statuses with real-time ROI analysis.",
+  "requestFramePermissions": []
+}

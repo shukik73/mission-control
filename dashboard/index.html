@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mission Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              background: 'var(--color-background)',
+              surface: 'var(--color-surface)',
+              surfaceHighlight: 'var(--color-surface-highlight)',
+              border: 'var(--color-border)',
+              primary: 'var(--color-primary)',
+              secondary: 'var(--color-secondary)',
+              accent: 'var(--color-accent)',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        /* Light Mode Defaults */
+        --color-background: #f4f4f5; /* Zinc 100 */
+        --color-surface: #ffffff;    /* White */
+        --color-surface-highlight: #e4e4e7; /* Zinc 200 */
+        --color-border: #d4d4d8;     /* Zinc 300 */
+        --color-primary: #18181b;    /* Zinc 900 */
+        --color-secondary: #71717a;  /* Zinc 500 */
+        --color-accent: #e4e4e7;     /* Zinc 200 */
+      }
+
+      .dark {
+        /* Dark Mode Overrides */
+        --color-background: #09090b; /* Zinc 950 */
+        --color-surface: #18181b;    /* Zinc 900 */
+        --color-surface-highlight: #27272a; /* Zinc 800 */
+        --color-border: #27272a;     /* Zinc 800 */
+        --color-primary: #e4e4e7;    /* Zinc 200 */
+        --color-secondary: #a1a1aa;  /* Zinc 400 */
+        --color-accent: #3f3f46;     /* Zinc 700 */
+      }
+
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--color-background); 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--color-border); 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-accent); 
+      }
+      body {
+        background-color: var(--color-background);
+        color: var(--color-primary);
+        transition: background-color 0.3s, color 0.3s;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react-dom": "https://esm.sh/react-dom@^19.2.4",
+    "date-fns": "https://esm.sh/date-fns@^4.1.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
