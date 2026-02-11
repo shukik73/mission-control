@@ -40,6 +40,7 @@ INSERT INTO agents (id, name, role, model, sort_order) VALUES
 ('radar', 'Radar', 'Competitive Intel & Price Monitoring', NULL, 10),
 ('penny', 'Penny', 'Bookkeeping & Financial Tracking', NULL, 11),
 ('echo', 'Echo', 'Customer Review & Feedback Manager', NULL, 12),
+('developer', 'Developer', 'Full-Stack Development & Automation', NULL, 13),
 ('shuki', 'Shuki', 'Human Operator & Final Approver', NULL, 0);
 
 -- ============================================

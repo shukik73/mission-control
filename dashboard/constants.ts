@@ -110,6 +110,15 @@ export const MOCK_AGENTS: Agent[] = [
     dealsFound: 0,
     dealsPending: 0,
     currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'developer',
+    name: 'Developer',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
   }
 ];
 
