@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Control — Agent Coordination Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: 16px;
+            padding: 16px;
+        }
+        /* SIDEBAR */
+        .sidebar {
+            width: 280px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .sidebar-header {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .agent-card {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .agent-card:hover {
+            background: #2a2a2a;
+            border-color: #444;
+        }
+        .agent-name {
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-online { background: #4ade80; }
+        .status-working { background: #facc15; }
+        .status-idle { background: #6b7280; }
+        .status-error { background: #ef4444; }
+        .agent-tasks {
+            font-size: 12px;
+            color: #888;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+        }
+        .task-count {
+            display: inline-block;
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-right: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        /* CENTER KANBAN */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .controls h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #00ff88;
+        }
+        .filter-group {
+            display: flex;
+            gap: 8px;
+        }
+        .filter-btn {
+            padding: 8px 12px;
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filter-btn:hover {
+            background: #333;
+            border-color: #444;
+        }
+        .filter-btn.active {
+            background: #00ff88;
+            color: #000;
+            border-color: #00ff88;
+        }
+        
+        .kanban {
+            display: flex;
+            gap: 12px;
+            flex: 1;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+        .kanban-column {
+            min-width: 220px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .column-header {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #888;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #333;
+        }
+        .column-count {
+            font-size: 11px;
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+            width: fit-content;
+        }
+        .task-card {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .task-card:hover {
+            background: #2a2a2a;
+            border-color: #444;
+            transform: translateY(-2px);
+        }
+        .task-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #e0e0e0;
+        }
+        .task-meta {
+            font-size: 11px;
+            color: #888;
+            display: flex;
+            justify-content: space-between;
+        }
+        .task-agent {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .task-priority {
+            color: #facc15;
+        }
+        
+        /* RIGHT PANEL */
+        .right-panel {
+            width: 320px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+        .panel-section-header {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .metric-box {
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 12px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #00ff88;
+        }
+        .metric-label {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .activity-feed {
+            border-top: 1px solid #333;
+            padding-top: 12px;
+        }
+        .activity-item {
+            padding: 8px;
+            font-size: 11px;
+            color: #888;
+            border-left: 2px solid #333;
+            padding-left: 10px;
+            margin-bottom: 8px;
+        }
+        .activity-item.success {
+            border-color: #4ade80;
+            color: #4ade80;
+        }
+        .activity-item.alert {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+        .activity-timestamp {
+            font-size: 10px;
+            color: #666;
+            display: block;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- SIDEBAR: Agent Status -->
+        <div class="sidebar">
+            <div class="sidebar-header">Active Agents</div>
+            
+            <div class="agent-card">
+                <div class="agent-name">
+                    <span class="status-dot status-working"></span>
+                    Scout
+                </div>
+                <div class="agent-tasks">
+                    <span class="task-count">3 deals</span>
+                    <span class="task-count">2 pending</span>
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="agent-name">
+                    <span class="status-dot status-online"></span>
+                    Iron Secretary Op
+                </div>
+                <div class="agent-tasks">
+                    <span class="task-count">8 calls</span>
+                    <span class="task-count">0 errors</span>
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="agent-name">
+                    <span class="status-dot status-working"></span>
+                    ReviewGuard Mon
+                </div>
+                <div class="agent-tasks">
+                    <span class="task-count">12 reviews</span>
+                    <span class="task-count">1 alert</span>
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="agent-name">
+                    <span class="status-dot status-idle"></span>
+                    Emilio Outbound
+                </div>
+                <div class="agent-tasks">
+                    <span class="task-count">24 emails</span>
+                    <span class="task-count">4 sent</span>
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="agent-name">
+                    <span class="status-dot status-online"></span>
+                    Hamoriko Producer
+                </div>
+                <div class="agent-tasks">
+                    <span class="task-count">2 episodes</span>
+                    <span class="task-count">0 pending</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CENTER: Kanban Workflow -->
+        <div class="main">
+            <div class="controls">
+                <h1>Mission Control</h1>
+                <div class="filter-group">
+                    <button class="filter-btn active">All Streams</button>
+                    <button class="filter-btn">Techy Miramar</button>
+                    <button class="filter-btn">Iron Secretary</button>
+                    <button class="filter-btn">ReviewGuard</button>
+                    <button class="filter-btn">LeadCatcher</button>
+                </div>
+            </div>
+            
+            <div class="kanban">
+                <div class="kanban-column">
+                    <div class="column-header">
+                        Inbox
+                        <span class="column-count">5</span>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">MacBook Pro deals (Scout)</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Scout</span>
+                            <span class="task-priority">⚠ 3 pending</span>
+                        </div>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Negative review flagged</div>
+                        <div class="task-meta">
+                            <span class="task-agent">ReviewGuard</span>
+                            <span class="task-priority">⚠ High</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kanban-column">
+                    <div class="column-header">
+                        Assigned
+                        <span class="column-count">8</span>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Process 3 deals through Ghost Protocol</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Scout</span>
+                            <span class="task-priority">→ Jay</span>
+                        </div>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Generate cold email variant A</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Emilio</span>
+                            <span class="task-priority">→ Jay</span>
+                        </div>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Review call transcripts (8)</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Iron Sec</span>
+                            <span class="task-priority">→ Shuki</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kanban-column">
+                    <div class="column-header">
+                        Active
+                        <span class="column-count">4</span>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Score night shift calls</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Iron Sec</span>
+                            <span class="task-priority">→ 23:00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Render Hamoriko episode 12</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Hamoriko</span>
+                            <span class="task-priority">60% done</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kanban-column">
+                    <div class="column-header">
+                        Review
+                        <span class="column-count">2</span>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">ReviewGuard auto-reply draft</div>
+                        <div class="task-meta">
+                            <span class="task-agent">ReviewGuard</span>
+                            <span class="task-priority">→ Shuki</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kanban-column">
+                    <div class="column-header">
+                        Done
+                        <span class="column-count">18</span>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Process 5 calls (Iron Sec)</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Iron Sec</span>
+                            <span class="task-priority">✓ Today</span>
+                        </div>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">2 YouTube uploads (Hamoriko)</div>
+                        <div class="task-meta">
+                            <span class="task-agent">Hamoriko</span>
+                            <span class="task-priority">✓ Today</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- RIGHT PANEL: Metrics & Activity Feed -->
+        <div class="right-panel">
+            <div>
+                <div class="panel-section-header">Today's KPIs</div>
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-value">$847</div>
+                        <div class="metric-label">Revenue Velocity</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">84%</div>
+                        <div class="metric-label">Completion Rate</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">12</div>
+                        <div class="metric-label">Tasks Done</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">0</div>
+                        <div class="metric-label">Critical Errors</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="activity-feed">
+                <div class="panel-section-header">Activity Feed</div>
+                
+                <div class="activity-item success">
+                    ✓ Scout found MacBook Pro deal (ROI 140%)
+                    <span class="activity-timestamp">14:22 ET</span>
+                </div>
+                
+                <div class="activity-item success">
+                    ✓ Iron Secretary scored 8 calls (avg 7.3/10)
+                    <span class="activity-timestamp">13:45 ET</span>
+                </div>
+                
+                <div class="activity-item">
+                    → ReviewGuard detected negative trend
+                    <span class="activity-timestamp">13:20 ET</span>
+                </div>
+                
+                <div class="activity-item alert">
+                    ! Emilio variant A: 0% open rate (paused)
+                    <span class="activity-timestamp">12:50 ET</span>
+                </div>
+                
+                <div class="activity-item success">
+                    ✓ Hamoriko episode 11 published
+                    <span class="activity-timestamp">09:15 ET</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
