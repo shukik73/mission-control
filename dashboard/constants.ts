@@ -4,40 +4,112 @@ const NOW = new Date();
 
 export const MOCK_AGENTS: Agent[] = [
   {
-    id: 'a1',
-    name: 'Scout',
+    id: 'jay',
+    name: 'Jay',
     status: 'active',
-    lastActive: new Date(NOW.getTime() - 8 * 60000), 
+    lastActive: new Date(NOW.getTime() - 2 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'kai',
+    name: 'Kai',
+    status: 'active',
+    lastActive: new Date(NOW.getTime() - 5 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'scout',
+    name: 'Scout Baz',
+    status: 'active',
+    lastActive: new Date(NOW.getTime() - 8 * 60000),
     dealsFound: 124,
     dealsPending: 3,
     currentStream: 'Techy Miramar'
   },
   {
-    id: 'a2',
-    name: 'ReviewGuard',
+    id: 'pixel',
+    name: 'Pixel',
     status: 'waiting',
-    lastActive: new Date(NOW.getTime() - 45 * 60000),
-    dealsFound: 82,
+    lastActive: new Date(NOW.getTime() - 30 * 60000),
+    dealsFound: 0,
     dealsPending: 0,
-    currentStream: 'ReviewGuard'
+    currentStream: 'Techy Miramar'
   },
   {
-    id: 'a3',
-    name: 'LeadCatcher',
-    status: 'paused',
-    lastActive: new Date(NOW.getTime() - 120 * 60000),
+    id: 'emilio',
+    name: 'Igor',
+    status: 'waiting',
+    lastActive: new Date(NOW.getTime() - 45 * 60000),
     dealsFound: 15,
     dealsPending: 0,
-    currentStream: 'LeadCatcher'
+    currentStream: 'Techy Miramar'
   },
-   {
-    id: 'a4',
-    name: 'Hamoriko',
+  {
+    id: 'iron-sec',
+    name: 'Secretary',
+    status: 'active',
+    lastActive: new Date(NOW.getTime() - 10 * 60000),
+    dealsFound: 82,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'hamoriko',
+    name: 'Hamoriko Producer',
     status: 'active',
     lastActive: new Date(NOW.getTime() - 2 * 60000),
     dealsFound: 340,
     dealsPending: 12,
-    currentStream: 'Hamoriko'
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'buzz',
+    name: 'Buzz',
+    status: 'waiting',
+    lastActive: new Date(NOW.getTime() - 60 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'valet',
+    name: 'Valet',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'radar',
+    name: 'Radar',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'penny',
+    name: 'Penny',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'echo',
+    name: 'Echo',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
   }
 ];
 

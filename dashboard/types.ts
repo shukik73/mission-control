@@ -47,9 +47,5 @@ export interface Agent {
 
 export const STREAMS = [
   'All Streams',
-  'Techy Miramar',
-  'Iron Secretary',
-  'ReviewGuard',
-  'LeadCatcher',
-  'Hamoriko'
+  'Techy Miramar'
 ];

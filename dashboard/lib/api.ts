@@ -129,7 +129,8 @@ export async function fetchAgents(): Promise<Agent[]> {
   const { data, error } = await supabase
     .from('agents')
     .select('*')
-    .neq('id', 'shuki');  // don't show human operator
+    .neq('id', 'shuki')  // don't show human operator
+    .order('sort_order', { ascending: true });
 
   if (error) {
     console.error('fetchAgents error:', error);

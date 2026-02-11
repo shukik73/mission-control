@@ -23,18 +23,24 @@ CREATE TABLE agents (
   cost_per_1k_tokens DECIMAL(10,4),
   last_heartbeat TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  metadata JSONB DEFAULT '{}'::jsonb
+  metadata JSONB DEFAULT '{}'::jsonb,
+  sort_order INT DEFAULT 99
 );
 
-INSERT INTO agents (id, name, role, model) VALUES
-('scout', 'Scout', 'eBay/Amazon Sourcing Specialist', 'llama-3.1'),
-('jay', 'Jay', 'Squad Lead & Execution', 'claude-sonnet-4'),
-('kai', 'Kai', 'Assistant', 'claude-sonnet-4'),
-('iron-sec', 'Iron Secretary Op', 'Call Analysis & Customer Management', 'claude-sonnet-4'),
-('reviewguard', 'ReviewGuard Mon', 'Google Reviews Monitoring', 'claude-haiku-4'),
-('emilio', 'Emilio Outbound', 'Cold Email Campaigns', 'claude-haiku-4'),
-('hamoriko', 'Hamoriko Producer', 'YouTube Content Generation', 'claude-sonnet-4'),
-('shuki', 'Shuki', 'Human Operator & Final Approver', NULL);
+INSERT INTO agents (id, name, role, model, sort_order) VALUES
+('jay', 'Jay', 'Squad Lead & Execution', 'claude-sonnet-4', 1),
+('kai', 'Kai', 'Assistant', 'claude-sonnet-4', 2),
+('scout', 'Scout Baz', 'eBay/Amazon Sourcing Specialist', 'claude-sonnet-4', 3),
+('pixel', 'Pixel', 'Creative Asset Production', 'claude-sonnet-4', 4),
+('emilio', 'Igor', 'Cold Email Campaigns', 'claude-haiku-4', 5),
+('iron-sec', 'Secretary', 'Call Analysis & Customer Management', 'claude-sonnet-4', 6),
+('hamoriko', 'Hamoriko Producer', 'YouTube Content Generation', 'claude-sonnet-4', 7),
+('buzz', 'Buzz', 'Social Media Management', 'claude-sonnet-4', 8),
+('valet', 'Valet', 'Appointment Booking & Calendar Management', NULL, 9),
+('radar', 'Radar', 'Competitive Intel & Price Monitoring', NULL, 10),
+('penny', 'Penny', 'Bookkeeping & Financial Tracking', NULL, 11),
+('echo', 'Echo', 'Customer Review & Feedback Manager', NULL, 12),
+('shuki', 'Shuki', 'Human Operator & Final Approver', NULL, 0);
 
 -- ============================================
 -- MISSIONS TABLE (Task Queue)
