@@ -77,6 +77,16 @@ async function searchEbay(query: string, token: string) {
   return data.itemSummaries || [];
 }
 
+// ── Title Sanitization (prompt injection mitigation) ──
+function sanitizeTitle(raw: string): string {
+  // Strip control characters and zero-width chars
+  let clean = raw.replace(/[\x00-\x1F\x7F\u200B-\u200F\uFEFF]/g, '');
+  // Collapse whitespace
+  clean = clean.replace(/\s+/g, ' ').trim();
+  // Cap length to prevent payload stuffing
+  return clean.substring(0, 200);
+}
+
 // ── Ghost Protocol Filter ──
 function ghostProtocolFilter(item: any) {
   const title = (item.title || '').toLowerCase();
@@ -205,7 +215,7 @@ function extractModel(title: string): string {
 
 // ── Dual-Table Write ──
 async function createDeal(item: any, ghostResult: any) {
-  const title = item.title || 'Unknown Item';
+  const title = sanitizeTitle(item.title || 'Unknown Item');
   const roi = parseFloat(ghostResult.roi);
 
   // PRIORITY LOGIC
@@ -407,6 +417,21 @@ export async function GET(request: Request) {
         const items = await searchEbay(query, token);
         console.log(`  "${query}" -> ${items.length} results`);
 
+        // Batch dedup check — single query instead of N individual queries
+        const itemUrls = items.map((item: any) => item.itemWebUrl).filter(Boolean);
+        const existingUrls = new Set<string>();
+        if (itemUrls.length > 0) {
+          const { data: existingDeals } = await supabase
+            .from('scout_deals')
+            .select('item_url')
+            .in('item_url', itemUrls);
+          if (existingDeals) {
+            for (const deal of existingDeals) {
+              existingUrls.add(deal.item_url);
+            }
+          }
+        }
+
         for (const item of items) {
           // Currency validation — skip non-USD listings
           const currency = item.price?.currency || item.price?.currencyCode || 'USD';
@@ -416,16 +441,8 @@ export async function GET(request: Request) {
           }
 
           // Dedup check — skip if item_url already exists in scout_deals
-          if (item.itemWebUrl) {
-            const { data: existing } = await supabase
-              .from('scout_deals')
-              .select('id')
-              .eq('item_url', item.itemWebUrl)
-              .limit(1);
-
-            if (existing && existing.length > 0) {
-              continue; // already tracked
-            }
+          if (item.itemWebUrl && existingUrls.has(item.itemWebUrl)) {
+            continue; // already tracked
           }
 
           // Enrich with market value from DB

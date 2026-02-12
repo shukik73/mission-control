@@ -10,22 +10,34 @@ interface AgentSidebarProps {
 export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents }) => {
   const [selectedStream, setSelectedStream] = useState<string>('All Streams');
 
-  const getStatusColor = (lastActive: Date) => {
-    const now = new Date();
-    const diffMins = (now.getTime() - lastActive.getTime()) / 60000;
+  const getStatusColor = (agent: Agent) => {
+    // Agent status is the primary signal — not lastActive time
+    if (agent.status === 'paused') return 'text-zinc-500';
+    if (agent.status === 'waiting') return 'text-yellow-500';
 
+    // For 'active' agents, verify with heartbeat freshness
+    const now = new Date();
+    const diffMins = (now.getTime() - agent.lastActive.getTime()) / 60000;
     if (diffMins < 15) return 'text-emerald-500';
     if (diffMins < 60) return 'text-yellow-500';
     return 'text-rose-500';
   };
 
-  const getStatusIcon = (lastActive: Date) => {
-    const now = new Date();
-    const diffMins = (now.getTime() - lastActive.getTime()) / 60000;
+  const getStatusIcon = (agent: Agent) => {
+    if (agent.status === 'paused') return <PauseCircle size={14} />;
+    if (agent.status === 'waiting') return <Clock size={14} />;
 
+    const now = new Date();
+    const diffMins = (now.getTime() - agent.lastActive.getTime()) / 60000;
     if (diffMins < 15) return <Activity size={14} className="animate-pulse" />;
     if (diffMins < 60) return <Clock size={14} />;
     return <PauseCircle size={14} />;
+  };
+
+  const getStatusLabel = (agent: Agent): string => {
+    if (agent.status === 'paused') return 'Not deployed';
+    if (agent.status === 'waiting') return 'Idle';
+    return 'Active';
   };
 
   const filteredAgents = selectedStream === 'All Streams'
@@ -66,17 +78,19 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents }) => {
       {/* Agents List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {filteredAgents.map(agent => {
-            const statusColor = getStatusColor(agent.lastActive);
+            const statusColor = getStatusColor(agent);
+            const isPaused = agent.status === 'paused';
 
             return (
-                <div key={agent.id} className="bg-surfaceHighlight hover:bg-accent border border-border rounded-lg p-3 transition-colors group cursor-default">
+                <div key={agent.id} className={`bg-surfaceHighlight hover:bg-accent border border-border rounded-lg p-3 transition-colors group cursor-default ${isPaused ? 'opacity-50' : ''}`}>
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center">
                             <div className={`w-2 h-2 rounded-full mr-2 shrink-0 ${statusColor.replace('text-', 'bg-')} shadow-[0_0_8px_rgba(0,0,0,0.5)]`} />
                             <span className="text-sm font-medium text-primary">{agent.name}</span>
                         </div>
-                        <div className={`${statusColor} shrink-0`} title="Status">
-                            {getStatusIcon(agent.lastActive)}
+                        <div className={`${statusColor} shrink-0 flex items-center gap-1`} title={getStatusLabel(agent)}>
+                            {getStatusIcon(agent)}
+                            <span className="text-[10px]">{getStatusLabel(agent)}</span>
                         </div>
                     </div>
 
@@ -84,15 +98,17 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents }) => {
                         <p className="text-[10px] text-secondary ml-4 mb-2 truncate">{agent.role}</p>
                     )}
 
-                    <div className="flex justify-between text-xs text-secondary font-mono mb-2">
-                        <span>{agent.dealsFound} found</span>
-                        <span>{agent.dealsPending} pending</span>
-                    </div>
+                    {!isPaused && (
+                      <div className="flex justify-between text-xs text-secondary font-mono mb-2">
+                          <span>{agent.dealsFound} found</span>
+                          <span>{agent.dealsPending} pending</span>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between pt-2 border-t border-border">
                         <span className="text-[10px] text-secondary uppercase tracking-wider flex items-center">
                             <Clock size={10} className="mr-1" />
-                            {formatDistanceToNow(agent.lastActive, { addSuffix: true })}
+                            {isPaused ? 'Never active' : formatDistanceToNow(agent.lastActive, { addSuffix: true })}
                         </span>
                          <span className="text-[10px] bg-surfaceHighlight text-secondary px-1.5 py-0.5 rounded truncate max-w-[100px]">
                             {agent.currentStream}

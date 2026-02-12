@@ -3,26 +3,7 @@ import { Agent, Deal, DealStatus, Priority } from './types';
 const NOW = new Date();
 
 export const MOCK_AGENTS: Agent[] = [
-  {
-    id: 'jay',
-    name: 'Jay',
-    role: 'Squad Lead & Execution',
-    status: 'active',
-    lastActive: new Date(NOW.getTime() - 2 * 60000),
-    dealsFound: 0,
-    dealsPending: 0,
-    currentStream: 'Techy Miramar'
-  },
-  {
-    id: 'kai',
-    name: 'Kai',
-    role: 'Assistant',
-    status: 'active',
-    lastActive: new Date(NOW.getTime() - 5 * 60000),
-    dealsFound: 0,
-    dealsPending: 0,
-    currentStream: 'Techy Miramar'
-  },
+  // ── OPERATIONAL AGENTS (have running code) ──
   {
     id: 'scout',
     name: 'Scout Baz',
@@ -34,11 +15,21 @@ export const MOCK_AGENTS: Agent[] = [
     currentStream: 'Techy Miramar'
   },
   {
-    id: 'pixel',
-    name: 'Pixel',
-    role: 'Creative Asset Production',
+    id: 'midas',
+    name: 'Midas',
+    role: 'Google Places Lead Scraping',
     status: 'waiting',
-    lastActive: new Date(NOW.getTime() - 30 * 60000),
+    lastActive: new Date(NOW.getTime() - 45 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'pluto',
+    name: 'Pluto',
+    role: 'Review Pain Analysis',
+    status: 'waiting',
+    lastActive: new Date(NOW.getTime() - 45 * 60000),
     dealsFound: 0,
     dealsPending: 0,
     currentStream: 'Techy Miramar'
@@ -53,13 +44,44 @@ export const MOCK_AGENTS: Agent[] = [
     dealsPending: 0,
     currentStream: 'Techy Miramar'
   },
+  // ── DESIGN ONLY (prompt exists, no running code) ──
+  {
+    id: 'jay',
+    name: 'Jay',
+    role: 'Squad Lead & Execution',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'kai',
+    name: 'Kai',
+    role: 'Assistant',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
   {
     id: 'iron-sec',
     name: 'Secretary',
     role: 'Calls & Customer Mgmt',
-    status: 'active',
-    lastActive: new Date(NOW.getTime() - 10 * 60000),
-    dealsFound: 82,
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
+    currentStream: 'Techy Miramar'
+  },
+  {
+    id: 'pixel',
+    name: 'Pixel',
+    role: 'Creative Asset Production',
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
     dealsPending: 0,
     currentStream: 'Techy Miramar'
   },
@@ -67,22 +89,23 @@ export const MOCK_AGENTS: Agent[] = [
     id: 'hamoriko',
     name: 'Hamoriko Producer',
     role: 'YouTube Content',
-    status: 'active',
-    lastActive: new Date(NOW.getTime() - 2 * 60000),
-    dealsFound: 340,
-    dealsPending: 12,
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
+    dealsFound: 0,
+    dealsPending: 0,
     currentStream: 'Techy Miramar'
   },
   {
     id: 'buzz',
     name: 'Buzz',
     role: 'Social Media Management',
-    status: 'waiting',
-    lastActive: new Date(NOW.getTime() - 60 * 60000),
+    status: 'paused',
+    lastActive: new Date(NOW.getTime() - 9999 * 60000),
     dealsFound: 0,
     dealsPending: 0,
     currentStream: 'Techy Miramar'
   },
+  // ── NOT STARTED ──
   {
     id: 'valet',
     name: 'Valet',

@@ -188,6 +188,13 @@ bot.action(/approve_(.+)/, async (ctx) => {
     if (fetchError) throw fetchError;
     if (!mission) throw new Error('Mission not found');
 
+    // Guard: only approve if still in an actionable state
+    if (mission.status === 'done' || mission.status === 'rejected') {
+      await ctx.answerCbQuery('Already actioned');
+      await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+      return;
+    }
+
     // Update mission status
     const { error: missionError } = await supabase
       .from('missions')
@@ -200,15 +207,29 @@ bot.action(/approve_(.+)/, async (ctx) => {
 
     if (missionError) throw missionError;
 
-    // If it's a Scout deal, update scout_deals table
+    // If it's a Scout deal, update scout_deals table (only if still pending)
     if (mission.agent_id === 'scout') {
-      await supabase
+      const { data: deal } = await supabase
         .from('scout_deals')
         .update({
           status: 'approved',
           decision_made_at: new Date().toISOString()
         })
-        .eq('mission_id', missionId);
+        .eq('mission_id', missionId)
+        .eq('status', 'pending')
+        .select('id')
+        .single();
+
+      // Audit log for deal approval
+      if (deal) {
+        await supabase.from('deal_audit_log').insert({
+          deal_id: deal.id,
+          mission_id: missionId,
+          action: 'approved',
+          source: 'telegram',
+          performed_by: 'shuki',
+        });
+      }
     }
 
     // Log activity
@@ -291,22 +312,32 @@ bot.action(/askjay_(.+)/, async (ctx) => {
 bot.command('reject', async (ctx) => {
   const args = ctx.message.text.split(' ').slice(1);
   const missionId = args[0];
-  const reason = args.slice(1).join(' ') || 'No reason provided';
+  // Sanitize: strip HTML tags, control characters, and cap length
+  const rawReason = args.slice(1).join(' ') || 'No reason provided';
+  const reason = rawReason
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .substring(0, 500);
 
   if (!missionId) {
     return ctx.reply('Usage: /reject [mission-id] [reason]');
   }
 
   try {
-    // Fetch current metadata first
+    // Fetch mission status and metadata
     const { data: mission, error: fetchError } = await supabase
       .from('missions')
-      .select('metadata')
+      .select('status, metadata')
       .eq('id', missionId)
       .single();
 
     if (fetchError) throw fetchError;
     if (!mission) throw new Error('Mission not found');
+
+    // Guard: only reject if still in an actionable state
+    if (mission.status === 'done' || mission.status === 'rejected') {
+      return ctx.reply('This mission has already been actioned.');
+    }
 
     // Merge rejection reason into existing metadata
     const updatedMetadata = { ...(mission.metadata || {}), rejection_reason: reason };
@@ -322,15 +353,30 @@ bot.command('reject', async (ctx) => {
 
     if (error) throw error;
 
-    // Update scout_deals if applicable
-    await supabase
+    // Update scout_deals if applicable (only if still pending)
+    const { data: deal } = await supabase
       .from('scout_deals')
       .update({
         status: 'rejected',
         rejection_reason: reason,
         decision_made_at: new Date().toISOString()
       })
-      .eq('mission_id', missionId);
+      .eq('mission_id', missionId)
+      .eq('status', 'pending')
+      .select('id')
+      .single();
+
+    // Audit log for deal rejection
+    if (deal) {
+      await supabase.from('deal_audit_log').insert({
+        deal_id: deal.id,
+        mission_id: missionId,
+        action: 'rejected',
+        source: 'telegram',
+        reason: reason,
+        performed_by: 'shuki',
+      });
+    }
 
     await supabase
       .from('agent_activity')
@@ -352,8 +398,10 @@ bot.command('reject', async (ctx) => {
 // REAL-TIME NOTIFICATIONS
 // ============================================
 
+let realtimeChannel = null;
+
 async function startNotificationService() {
-  const channel = supabase
+  realtimeChannel = supabase
     .channel('mission-alerts')
     .on('postgres_changes',
       {
@@ -411,5 +459,11 @@ bot.launch().then(() => {
   startNotificationService();
 });
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => {
+  if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  bot.stop('SIGINT');
+});
+process.once('SIGTERM', () => {
+  if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  bot.stop('SIGTERM');
+});

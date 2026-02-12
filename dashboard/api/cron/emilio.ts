@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 // ── CONFIG ──
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL!;
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || '';
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID!;
 const GOOGLE_SERVICE_ACCOUNT_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
@@ -21,15 +21,20 @@ const CRON_SEARCH_QUERIES = [
   'Cell Phone Store Pembroke Pines FL',
 ];
 
+// ── Base64url encoding (JWT spec requires this, NOT standard base64) ──
+function base64url(str: string): string {
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 // ── Google Sheets Auth ──
 async function getGoogleAccessToken(): Promise<string> {
   // Parse service account key from env
   const sa = JSON.parse(GOOGLE_SERVICE_ACCOUNT_KEY);
 
-  // Build JWT
-  const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  // Build JWT — all three parts MUST use base64url encoding per RFC 7519
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const now = Math.floor(Date.now() / 1000);
-  const payload = btoa(
+  const payload = base64url(
     JSON.stringify({
       iss: sa.client_email,
       scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
@@ -399,11 +404,12 @@ export async function GET(request: Request) {
     const n8nTriggered = await triggerN8nPipeline(activeQuery, searchMode);
 
     if (n8nTriggered) {
-      // Poll Google Sheets until data appears or timeout (max 5 minutes, check every 30s)
-      console.log('  Polling for n8n pipeline results (max 5min)...');
+      // Poll Google Sheets until data appears or timeout
+      // Vercel Pro max is 300s — leave 60s buffer for Sheets read + DB upserts
+      console.log('  Polling for n8n pipeline results (max 3min)...');
       const pollStart = Date.now();
-      const MAX_WAIT_MS = 300000; // 5 minutes
-      const POLL_INTERVAL_MS = 30000; // 30 seconds
+      const MAX_WAIT_MS = 180000; // 3 minutes (safe for Vercel 300s limit)
+      const POLL_INTERVAL_MS = 15000; // 15 seconds
       let dataReady = false;
 
       while (Date.now() - pollStart < MAX_WAIT_MS) {
@@ -423,7 +429,7 @@ export async function GET(request: Request) {
       }
 
       if (!dataReady) {
-        console.log('  n8n pipeline timed out after 5 minutes');
+        console.log('  n8n pipeline timed out after 3 minutes');
       }
     }
 

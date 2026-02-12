@@ -47,9 +47,11 @@ interface ScoutDealRow {
   seller_rating: number | null;
   seller_feedback_count: number | null;
   is_local_pickup: boolean;
+  distance_miles: number | null;
   auction_ends_at: string | null;
   status: string;
   rejection_reason: string | null;
+  item_url: string | null;
   item_type: string | null;
   created_at: string;
   mission_id: string | null;
@@ -74,7 +76,9 @@ function rowToDeal(row: ScoutDealRow): Deal {
     marketValue: Number(row.estimated_value) || 0,
     sellerRating: Number(row.seller_rating) || 0,
     sellerSales: Number(row.seller_feedback_count) || 0,
+    itemUrl: row.item_url || undefined,
     localPickup: row.is_local_pickup,
+    distanceMiles: row.distance_miles ? Number(row.distance_miles) : undefined,
     status: mapMissionStatus(missionStatus, row.status),
     priority: mapPriority(missionPriority),
     category: (row.item_type === 'electronics' || !row.item_type) ? 'electronics' : 'other',
@@ -92,12 +96,25 @@ interface AgentRow {
 }
 
 function rowToAgent(row: AgentRow): Agent {
+  // Agents with no heartbeat have never run — treat as paused
+  const hasHeartbeat = !!row.last_heartbeat;
+  let status: 'active' | 'waiting' | 'paused';
+  if (!hasHeartbeat) {
+    status = 'paused';
+  } else if (row.status === 'active') {
+    status = 'active';
+  } else if (row.status === 'idle') {
+    status = 'waiting';
+  } else {
+    status = 'paused';
+  }
+
   return {
     id: row.id,
     name: row.name,
     role: row.role || '',
-    status: row.status === 'active' ? 'active' : row.status === 'idle' ? 'waiting' : 'paused',
-    lastActive: row.last_heartbeat ? new Date(row.last_heartbeat) : new Date(),
+    status,
+    lastActive: row.last_heartbeat ? new Date(row.last_heartbeat) : new Date(0), // epoch = never
     dealsFound: 0,
     dealsPending: 0,
     currentStream: String((row.metadata as Record<string, unknown>)?.stream ?? 'Techy Miramar'),
@@ -245,6 +262,50 @@ export async function rejectDeal(dealId: string, reason?: string): Promise<boole
   }).then(({ error: auditErr }) => {
     if (auditErr) console.error('Audit log insert failed:', auditErr);
   });
+
+  return true;
+}
+
+/** Ask Jay to review a deal — creates a sub-mission for Jay */
+export async function askJay(dealId: string): Promise<boolean> {
+  if (!isLive || !supabase) {
+    console.log('[Demo] Ask Jay:', dealId);
+    return true;
+  }
+
+  // Get the scout deal + linked mission
+  const { data: deal, error: fetchErr } = await supabase
+    .from('scout_deals')
+    .select('id, title, mission_id, price, shipping_cost, estimated_value, roi_percent')
+    .eq('id', dealId)
+    .single();
+
+  if (fetchErr || !deal) {
+    console.error('askJay: deal not found:', fetchErr);
+    return false;
+  }
+
+  // Create a review mission for Jay
+  const { error: insertErr } = await supabase
+    .from('missions')
+    .insert({
+      agent_id: 'jay',
+      status: 'assigned',
+      priority: 'normal',
+      title: `Review & Advise: ${deal.title?.substring(0, 60)}`,
+      description: `Shuki wants your analysis. Price: $${deal.price}, Value: $${deal.estimated_value}, ROI: ${deal.roi_percent}%`,
+      assigned_to: 'jay',
+      metadata: {
+        parent_deal_id: dealId,
+        parent_mission_id: deal.mission_id,
+        review_type: 'shuki_asked_jay',
+      },
+    });
+
+  if (insertErr) {
+    console.error('askJay: mission insert failed:', insertErr);
+    return false;
+  }
 
   return true;
 }
