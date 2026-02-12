@@ -319,10 +319,10 @@ bot.command('reject', async (ctx) => {
   }
 
   try {
-    // Fetch current metadata first
+    // Fetch mission status and metadata
     const { data: mission, error: fetchError } = await supabase
       .from('missions')
-      .select('metadata')
+      .select('status, metadata')
       .eq('id', missionId)
       .single();
 
@@ -330,7 +330,7 @@ bot.command('reject', async (ctx) => {
     if (!mission) throw new Error('Mission not found');
 
     // Guard: only reject if still in an actionable state
-    if (mission.metadata?.status === 'done') {
+    if (mission.status === 'done' || mission.status === 'rejected') {
       return ctx.reply('This mission has already been actioned.');
     }
 

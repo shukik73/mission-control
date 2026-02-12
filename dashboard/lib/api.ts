@@ -47,6 +47,7 @@ interface ScoutDealRow {
   seller_rating: number | null;
   seller_feedback_count: number | null;
   is_local_pickup: boolean;
+  distance_miles: number | null;
   auction_ends_at: string | null;
   status: string;
   rejection_reason: string | null;
@@ -75,6 +76,7 @@ function rowToDeal(row: ScoutDealRow): Deal {
     sellerRating: Number(row.seller_rating) || 0,
     sellerSales: Number(row.seller_feedback_count) || 0,
     localPickup: row.is_local_pickup,
+    distanceMiles: row.distance_miles ? Number(row.distance_miles) : undefined,
     status: mapMissionStatus(missionStatus, row.status),
     priority: mapPriority(missionPriority),
     category: (row.item_type === 'electronics' || !row.item_type) ? 'electronics' : 'other',

@@ -8,7 +8,7 @@ interface AuthGateProps {
 
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(!isLive);
+  const [loading, setLoading] = useState(isLive);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

@@ -21,15 +21,20 @@ const CRON_SEARCH_QUERIES = [
   'Cell Phone Store Pembroke Pines FL',
 ];
 
+// ── Base64url encoding (JWT spec requires this, NOT standard base64) ──
+function base64url(str: string): string {
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 // ── Google Sheets Auth ──
 async function getGoogleAccessToken(): Promise<string> {
   // Parse service account key from env
   const sa = JSON.parse(GOOGLE_SERVICE_ACCOUNT_KEY);
 
-  // Build JWT
-  const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  // Build JWT — all three parts MUST use base64url encoding per RFC 7519
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const now = Math.floor(Date.now() / 1000);
-  const payload = btoa(
+  const payload = base64url(
     JSON.stringify({
       iss: sa.client_email,
       scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
