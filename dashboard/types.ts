@@ -28,7 +28,8 @@ export interface Deal {
   localPickup: boolean;
   status: DealStatus;
   priority?: Priority;
-  thumbnail?: string; 
+  itemUrl?: string;
+  thumbnail?: string;
   // New Fields
   category: Category;
   distanceMiles?: number;

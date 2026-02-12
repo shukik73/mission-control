@@ -3,7 +3,7 @@ import { AgentSidebar } from './components/AgentSidebar';
 import { DealCard } from './components/DealCard';
 import { DealStatus, Priority, StreamType, Deal, Agent } from './types';
 import { MOCK_AGENTS, MOCK_DEALS } from './constants';
-import { fetchDeals, fetchAgents, approveDeal, rejectDeal, subscribeToDeals } from './lib/api';
+import { fetchDeals, fetchAgents, approveDeal, rejectDeal, askJay, subscribeToDeals } from './lib/api';
 import { isLive } from './lib/supabase';
 import { quickROI } from './lib/roi';
 import { LayoutDashboard, Settings, Bell, Search, AlertCircle, Rocket, DollarSign, BarChart2, Sun, Moon, Wifi, WifiOff } from 'lucide-react';
@@ -92,6 +92,10 @@ export default function App() {
         d.id === dealId ? { ...d, status: DealStatus.Done } : d
       ));
     }
+  }, []);
+
+  const handleAskJay = useCallback(async (dealId: string) => {
+    await askJay(dealId);
   }, []);
 
   const columns = [
@@ -236,6 +240,7 @@ export default function App() {
                                 deal={deal}
                                 onApprove={handleApprove}
                                 onPass={handlePass}
+                                onAskJay={handleAskJay}
                               />
                           ))
                       )}

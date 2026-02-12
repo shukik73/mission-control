@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 // ── CONFIG ──
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL!;
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || '';
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID!;
 const GOOGLE_SERVICE_ACCOUNT_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;

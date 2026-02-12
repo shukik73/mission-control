@@ -312,7 +312,12 @@ bot.action(/askjay_(.+)/, async (ctx) => {
 bot.command('reject', async (ctx) => {
   const args = ctx.message.text.split(' ').slice(1);
   const missionId = args[0];
-  const reason = args.slice(1).join(' ') || 'No reason provided';
+  // Sanitize: strip HTML tags, control characters, and cap length
+  const rawReason = args.slice(1).join(' ') || 'No reason provided';
+  const reason = rawReason
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .substring(0, 500);
 
   if (!missionId) {
     return ctx.reply('Usage: /reject [mission-id] [reason]');
@@ -393,8 +398,10 @@ bot.command('reject', async (ctx) => {
 // REAL-TIME NOTIFICATIONS
 // ============================================
 
+let realtimeChannel = null;
+
 async function startNotificationService() {
-  const channel = supabase
+  realtimeChannel = supabase
     .channel('mission-alerts')
     .on('postgres_changes',
       {
@@ -452,5 +459,11 @@ bot.launch().then(() => {
   startNotificationService();
 });
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => {
+  if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  bot.stop('SIGINT');
+});
+process.once('SIGTERM', () => {
+  if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  bot.stop('SIGTERM');
+});

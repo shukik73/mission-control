@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, MapPin, TrendingUp, DollarSign, Package, UserCheck, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, AlertCircle, Car, HelpCircle, FileText, Loader2, Check, X } from 'lucide-react';
+import { Clock, MapPin, Package, UserCheck, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, AlertCircle, Car, HelpCircle, Loader2, Check, X, ExternalLink } from 'lucide-react';
 import { Deal, Priority } from '../types';
 import { calculateROI } from '../lib/roi';
 import { formatDistanceToNow } from 'date-fns';
@@ -8,13 +8,15 @@ interface DealCardProps {
   deal: Deal;
   onApprove?: (id: string) => Promise<void> | void;
   onPass?: (id: string) => Promise<void> | void;
+  onAskJay?: (id: string) => Promise<void> | void;
 }
 
-export const DealCard: React.FC<DealCardProps> = ({ deal, onApprove, onPass }) => {
+export const DealCard: React.FC<DealCardProps> = ({ deal, onApprove, onPass, onAskJay }) => {
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isUrgentTime, setIsUrgentTime] = useState(false);
   const [actionLoading, setActionLoading] = useState<'approve' | 'pass' | null>(null);
   const [actionDone, setActionDone] = useState<'approved' | 'passed' | null>(null);
+  const [jayAsked, setJayAsked] = useState(false);
 
   // --- Local Pickup Economics ---
   let pickupCost = 0;
@@ -161,7 +163,14 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onApprove, onPass }) =
         </div>
 
         <h3 className="text-primary font-semibold text-sm leading-snug mb-2 group-hover:text-blue-500 transition-colors">
-          {deal.title}
+          {deal.itemUrl ? (
+            <a href={deal.itemUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
+              {deal.title}
+              <ExternalLink size={11} className="shrink-0 opacity-50" />
+            </a>
+          ) : (
+            deal.title
+          )}
         </h3>
 
         <div className="flex items-center text-xs text-secondary space-x-3 mb-3">
@@ -256,10 +265,18 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onApprove, onPass }) =
                   {actionLoading === 'pass' ? 'Passing...' : 'Pass'}
               </button>
               <button
-                  onClick={() => console.log('Ask Jay', deal.id)}
-                  disabled={!!actionLoading}
-                  className="px-2 bg-surfaceHighlight hover:bg-blue-500/20 hover:text-blue-500 hover:border-blue-500/50 text-secondary border border-border rounded flex items-center justify-center transition-colors disabled:opacity-50"
-                  title="Ask Jay">
+                  onClick={async () => {
+                    if (jayAsked || actionLoading) return;
+                    await onAskJay?.(deal.id);
+                    setJayAsked(true);
+                  }}
+                  disabled={!!actionLoading || jayAsked}
+                  className={`px-2 border rounded flex items-center justify-center transition-colors disabled:opacity-50 ${
+                    jayAsked
+                      ? 'bg-blue-500/20 text-blue-500 border-blue-500/50'
+                      : 'bg-surfaceHighlight hover:bg-blue-500/20 hover:text-blue-500 hover:border-blue-500/50 text-secondary border-border'
+                  }`}
+                  title={jayAsked ? 'Jay notified' : 'Ask Jay'}>
                   <MessageSquare size={14} />
               </button>
           </div>
