@@ -8,26 +8,26 @@ interface AuthGateProps {
 
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isLive);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
-  // Skip auth in demo mode (no Supabase connection)
-  if (!isLive) {
-    return <>{children}</>;
-  }
-
   useEffect(() => {
+    if (!isLive || !supabase) {
+      setLoading(false);
+      return;
+    }
+
     // Check existing session
-    supabase!.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
@@ -51,6 +51,11 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     await supabase!.auth.signOut();
     setSession(null);
   };
+
+  // Skip auth in demo mode (no Supabase connection)
+  if (!isLive) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (

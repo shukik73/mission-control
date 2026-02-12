@@ -399,11 +399,12 @@ export async function GET(request: Request) {
     const n8nTriggered = await triggerN8nPipeline(activeQuery, searchMode);
 
     if (n8nTriggered) {
-      // Poll Google Sheets until data appears or timeout (max 5 minutes, check every 30s)
-      console.log('  Polling for n8n pipeline results (max 5min)...');
+      // Poll Google Sheets until data appears or timeout
+      // Vercel Pro max is 300s — leave 60s buffer for Sheets read + DB upserts
+      console.log('  Polling for n8n pipeline results (max 3min)...');
       const pollStart = Date.now();
-      const MAX_WAIT_MS = 300000; // 5 minutes
-      const POLL_INTERVAL_MS = 30000; // 30 seconds
+      const MAX_WAIT_MS = 180000; // 3 minutes (safe for Vercel 300s limit)
+      const POLL_INTERVAL_MS = 15000; // 15 seconds
       let dataReady = false;
 
       while (Date.now() - pollStart < MAX_WAIT_MS) {
@@ -423,7 +424,7 @@ export async function GET(request: Request) {
       }
 
       if (!dataReady) {
-        console.log('  n8n pipeline timed out after 5 minutes');
+        console.log('  n8n pipeline timed out after 3 minutes');
       }
     }
 

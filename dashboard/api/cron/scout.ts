@@ -77,6 +77,16 @@ async function searchEbay(query: string, token: string) {
   return data.itemSummaries || [];
 }
 
+// ── Title Sanitization (prompt injection mitigation) ──
+function sanitizeTitle(raw: string): string {
+  // Strip control characters and zero-width chars
+  let clean = raw.replace(/[\x00-\x1F\x7F\u200B-\u200F\uFEFF]/g, '');
+  // Collapse whitespace
+  clean = clean.replace(/\s+/g, ' ').trim();
+  // Cap length to prevent payload stuffing
+  return clean.substring(0, 200);
+}
+
 // ── Ghost Protocol Filter ──
 function ghostProtocolFilter(item: any) {
   const title = (item.title || '').toLowerCase();
@@ -205,7 +215,7 @@ function extractModel(title: string): string {
 
 // ── Dual-Table Write ──
 async function createDeal(item: any, ghostResult: any) {
-  const title = item.title || 'Unknown Item';
+  const title = sanitizeTitle(item.title || 'Unknown Item');
   const roi = parseFloat(ghostResult.roi);
 
   // PRIORITY LOGIC
