@@ -32,7 +32,7 @@ INSERT INTO agents (id, name, role, model, sort_order) VALUES
 ('kai', 'Kai', 'Assistant', 'claude-sonnet-4', 2),
 ('scout', 'Scout Baz', 'eBay/Amazon Sourcing Specialist', 'claude-sonnet-4', 3),
 ('pixel', 'Pixel', 'Creative Asset Production', 'claude-sonnet-4', 4),
-('emilio', 'Igor', 'Cold Email Campaigns', 'claude-haiku-4', 5),
+('emilio', 'Emilio', 'Cold Email Campaigns', 'claude-haiku-4', 5),
 ('iron-sec', 'Secretary', 'Call Analysis & Customer Management', 'claude-sonnet-4', 6),
 ('hamoriko', 'Hamoriko Producer', 'YouTube Content Generation', 'claude-sonnet-4', 7),
 ('buzz', 'Buzz', 'Social Media Management', 'claude-sonnet-4', 8),

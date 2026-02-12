@@ -45,7 +45,7 @@ export const MOCK_AGENTS: Agent[] = [
   },
   {
     id: 'emilio',
-    name: 'Igor',
+    name: 'Emilio',
     role: 'Cold Email Campaigns',
     status: 'waiting',
     lastActive: new Date(NOW.getTime() - 45 * 60000),
