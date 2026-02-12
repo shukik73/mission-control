@@ -41,6 +41,8 @@ INSERT INTO agents (id, name, role, model, sort_order) VALUES
 ('penny', 'Penny', 'Bookkeeping & Financial Tracking', NULL, 11),
 ('echo', 'Echo', 'Customer Review & Feedback Manager', NULL, 12),
 ('developer', 'Developer', 'Full-Stack Development & Automation', NULL, 13),
+('midas', 'Midas', 'Google Places Lead Scraping', NULL, 14),
+('pluto', 'Pluto', 'Review Pain Analysis', NULL, 15),
 ('shuki', 'Shuki', 'Human Operator & Final Approver', NULL, 0);
 
 -- ============================================
@@ -171,6 +173,59 @@ CREATE TABLE price_benchmarks (
 );
 
 -- ============================================
+-- LEADS TABLE (Midas/Pluto/Emilio Pipeline)
+-- ============================================
+CREATE TABLE leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  mission_id UUID REFERENCES missions(id),
+
+  -- Midas data (from Google Places via n8n)
+  business_name TEXT NOT NULL,
+  address TEXT,
+  phone TEXT,
+  website TEXT,
+  owner_name TEXT,
+  google_rating DECIMAL(3,2),
+  google_review_count INTEGER,
+  google_place_id TEXT UNIQUE,
+
+  -- Pluto data (pain analysis via n8n)
+  pain_score INTEGER CHECK (pain_score BETWEEN 1 AND 10),
+  pain_hook TEXT,
+  pain_summary TEXT,
+
+  -- Emilio data (email drafts via n8n)
+  email_subject TEXT,
+  email_body TEXT,
+
+  -- Pipeline tracking
+  status TEXT DEFAULT 'discovered' CHECK (status IN (
+    'discovered',
+    'researched',
+    'email_drafted',
+    'email_sent',
+    'replied',
+    'qualified',
+    'disqualified'
+  )),
+  search_query TEXT,
+  search_mode TEXT CHECK (search_mode IN ('cron', 'manual')),
+
+  -- Timestamps
+  discovered_at TIMESTAMPTZ DEFAULT NOW(),
+  researched_at TIMESTAMPTZ,
+  email_drafted_at TIMESTAMPTZ,
+  email_sent_at TIMESTAMPTZ,
+  replied_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_leads_status ON leads(status);
+CREATE INDEX idx_leads_pain_score ON leads(pain_score DESC) WHERE pain_score IS NOT NULL;
+CREATE INDEX idx_leads_google_place_id ON leads(google_place_id);
+CREATE INDEX idx_leads_discovered_at ON leads(discovered_at DESC);
+
+-- ============================================
 -- TELEGRAM NOTIFICATIONS QUEUE
 -- ============================================
 CREATE TABLE telegram_notifications (
@@ -203,6 +258,9 @@ CREATE TRIGGER update_financial_tracking_updated_at BEFORE UPDATE ON financial_t
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_scout_deals_updated_at BEFORE UPDATE ON scout_deals
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON leads
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
