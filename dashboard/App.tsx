@@ -31,8 +31,8 @@ const ColumnHeader: React.FC<{ title: string; count: number; status: DealStatus 
 export default function App() {
   const [streamFilter, setStreamFilter] = useState<'all' | 'deal' | 'saas'>('all');
   const [darkMode, setDarkMode] = useState(true);
-  const [deals, setDeals] = useState<Deal[]>(MOCK_DEALS);
-  const [agents, setAgents] = useState<Agent[]>(MOCK_AGENTS);
+  const [deals, setDeals] = useState<Deal[]>(isLive ? [] : MOCK_DEALS);
+  const [agents, setAgents] = useState<Agent[]>(isLive ? [] : MOCK_AGENTS);
   const [loading, setLoading] = useState(true);
 
   // Toggle Dark Mode
