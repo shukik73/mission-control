@@ -92,12 +92,25 @@ interface AgentRow {
 }
 
 function rowToAgent(row: AgentRow): Agent {
+  // Agents with no heartbeat have never run — treat as paused
+  const hasHeartbeat = !!row.last_heartbeat;
+  let status: 'active' | 'waiting' | 'paused';
+  if (!hasHeartbeat) {
+    status = 'paused';
+  } else if (row.status === 'active') {
+    status = 'active';
+  } else if (row.status === 'idle') {
+    status = 'waiting';
+  } else {
+    status = 'paused';
+  }
+
   return {
     id: row.id,
     name: row.name,
     role: row.role || '',
-    status: row.status === 'active' ? 'active' : row.status === 'idle' ? 'waiting' : 'paused',
-    lastActive: row.last_heartbeat ? new Date(row.last_heartbeat) : new Date(),
+    status,
+    lastActive: row.last_heartbeat ? new Date(row.last_heartbeat) : new Date(0), // epoch = never
     dealsFound: 0,
     dealsPending: 0,
     currentStream: String((row.metadata as Record<string, unknown>)?.stream ?? 'Techy Miramar'),
