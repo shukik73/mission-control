@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, MapPin, TrendingUp, DollarSign, Package, UserCheck, MessageSquare, ThumbsUp, ThumbsDown, AlertTriangle, AlertCircle, Car, HelpCircle, FileText, Loader2, Check, X } from 'lucide-react';
 import { Deal, Priority } from '../types';
+import { calculateROI } from '../lib/roi';
 import { formatDistanceToNow } from 'date-fns';
 
 interface DealCardProps {
@@ -25,11 +26,15 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onApprove, onPass }) =
     pickupDetails = { gas: gasCost, time: timeCost };
   }
 
-  // --- ROI Calculations ---
+  // --- ROI Calculations (unified, includes platform fees) ---
   const isSaaS = deal.stream === 'saas' || deal.title.includes('Report');
-  const totalCost = deal.cost + deal.shipping + pickupCost;
-  const profit = deal.marketValue - totalCost;
-  const roi = totalCost > 0 ? (profit / totalCost) * 100 : (deal.marketValue > 0 ? 100 : 0);
+  const roiResult = calculateROI({
+    cost: deal.cost,
+    shipping: deal.shipping,
+    pickupCost,
+    marketValue: deal.marketValue,
+  });
+  const { totalCost, profit, roi, platformFees } = roiResult;
 
   // --- Visual Logic ---
   let borderColorClass = 'border-l-zinc-700 dark:border-l-zinc-700';
@@ -190,6 +195,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onApprove, onPass }) =
                 <div className="space-y-1 pl-2 border-l border-border">
                     <div className="text-xs text-secondary">Analysis</div>
                     <div className="text-xs text-secondary">Val: ${deal.marketValue}</div>
+                    <div className="text-[10px] text-zinc-500">Fees: -${platformFees.toFixed(0)}</div>
                     <div className={`text-sm font-bold flex items-center ${roiColorClass}`}>
                         {Math.round(roi)}% ROI
                     </div>

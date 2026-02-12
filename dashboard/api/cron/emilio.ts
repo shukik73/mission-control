@@ -7,7 +7,7 @@ const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL!;
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID!;
 const GOOGLE_SERVICE_ACCOUNT_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_KEY!;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const SHUKI_TELEGRAM_ID = '6103393903';
+const SHUKI_TELEGRAM_ID = process.env.SHUKI_TELEGRAM_ID!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -356,9 +356,13 @@ async function logActivity(
 // MAIN EMILIO PIPELINE CRON HANDLER
 // ══════════════════════════════════════════════════
 export async function GET(request: Request) {
-  // ── Auth ──
+  // ── Auth — FAIL CLOSED: deny if CRON_SECRET not configured ──
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return new Response(JSON.stringify({ error: 'Server misconfigured: CRON_SECRET not set' }), { status: 500 });
+  }
   const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
@@ -395,10 +399,32 @@ export async function GET(request: Request) {
     const n8nTriggered = await triggerN8nPipeline(activeQuery, searchMode);
 
     if (n8nTriggered) {
-      // Wait for n8n to process — Midas scrapes, Pluto analyzes, Emilio writes
-      // n8n typically takes 2-5 minutes for full pipeline
-      console.log('  Waiting 180s for n8n pipeline to complete...');
-      await new Promise((r) => setTimeout(r, 180000)); // 3 minutes
+      // Poll Google Sheets until data appears or timeout (max 5 minutes, check every 30s)
+      console.log('  Polling for n8n pipeline results (max 5min)...');
+      const pollStart = Date.now();
+      const MAX_WAIT_MS = 300000; // 5 minutes
+      const POLL_INTERVAL_MS = 30000; // 30 seconds
+      let dataReady = false;
+
+      while (Date.now() - pollStart < MAX_WAIT_MS) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        try {
+          const token = await getGoogleAccessToken();
+          const rows = await readSheetData(token);
+          if (rows.length > 0) {
+            console.log(`  n8n data ready after ${Math.round((Date.now() - pollStart) / 1000)}s`);
+            dataReady = true;
+            break;
+          }
+        } catch {
+          // Auth or sheet read failed, keep polling
+        }
+        console.log(`  Still waiting... (${Math.round((Date.now() - pollStart) / 1000)}s elapsed)`);
+      }
+
+      if (!dataReady) {
+        console.log('  n8n pipeline timed out after 5 minutes');
+      }
     }
 
     // ── Step 2: Read results from Google Sheets ──

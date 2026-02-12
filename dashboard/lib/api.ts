@@ -2,7 +2,7 @@ import { supabase, isLive } from './supabase';
 import { Deal, DealStatus, Priority, Agent } from '../types';
 import { MOCK_AGENTS, MOCK_DEALS } from '../constants';
 
-// ── Map DB rows → frontend types ────────────────────────────
+// ── Map DB rows -> frontend types ────────────────────────────
 
 function mapMissionStatus(missionStatus: string, dealStatus: string): DealStatus {
   // scout_deals.status takes priority for final states
@@ -106,8 +106,13 @@ function rowToAgent(row: AgentRow): Agent {
 
 // ── Public API ───────────────────────────────────────────────
 
-export async function fetchDeals(): Promise<Deal[]> {
+const PAGE_SIZE = 100;
+
+export async function fetchDeals(page = 0): Promise<Deal[]> {
   if (!isLive || !supabase) return MOCK_DEALS;
+
+  const from = page * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
 
   const { data, error } = await supabase
     .from('scout_deals')
@@ -115,7 +120,9 @@ export async function fetchDeals(): Promise<Deal[]> {
       *,
       missions!scout_deals_mission_id_fkey ( status, priority )
     `)
-    .order('created_at', { ascending: false });
+    .neq('status', 'rejected')  // don't load rejected deals by default
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) {
     console.error('fetchDeals error:', error);
@@ -148,32 +155,45 @@ export async function approveDeal(dealId: string): Promise<boolean> {
     return true;
   }
 
-  const { error } = await supabase
+  // Race condition guard: only update if still pending
+  const { data: updated, error } = await supabase
     .from('scout_deals')
     .update({
       status: 'approved',
       decision_made_at: new Date().toISOString(),
     })
-    .eq('id', dealId);
+    .eq('id', dealId)
+    .eq('status', 'pending')  // guard: only if still pending
+    .select('id, mission_id')
+    .single();
 
-  if (error) {
-    console.error('approveDeal error:', error);
+  if (error || !updated) {
+    console.error('approveDeal error (possibly already actioned):', error);
     return false;
   }
 
-  // Also update linked mission status to 'done'
-  const { data: deal } = await supabase
-    .from('scout_deals')
-    .select('mission_id')
-    .eq('id', dealId)
-    .single();
-
-  if (deal?.mission_id) {
-    await supabase
+  // Update linked mission — if this fails, deal is still marked approved (acceptable)
+  if (updated.mission_id) {
+    const { error: mErr } = await supabase
       .from('missions')
       .update({ status: 'done', completed_at: new Date().toISOString() })
-      .eq('id', deal.mission_id);
+      .eq('id', updated.mission_id);
+
+    if (mErr) {
+      console.error('approveDeal: mission update failed (deal still approved):', mErr);
+    }
   }
+
+  // Audit log
+  await supabase.from('deal_audit_log').insert({
+    deal_id: dealId,
+    mission_id: updated.mission_id,
+    action: 'approved',
+    source: 'dashboard',
+    performed_by: (await supabase.auth.getUser()).data.user?.email || 'unknown',
+  }).then(({ error: auditErr }) => {
+    if (auditErr) console.error('Audit log insert failed:', auditErr);
+  });
 
   return true;
 }
@@ -184,39 +204,53 @@ export async function rejectDeal(dealId: string, reason?: string): Promise<boole
     return true;
   }
 
-  const { error } = await supabase
+  // Race condition guard: only update if still pending
+  const { data: updated, error } = await supabase
     .from('scout_deals')
     .update({
       status: 'rejected',
       rejection_reason: reason || 'Passed by Shuki',
       decision_made_at: new Date().toISOString(),
     })
-    .eq('id', dealId);
+    .eq('id', dealId)
+    .eq('status', 'pending')  // guard: only if still pending
+    .select('id, mission_id')
+    .single();
 
-  if (error) {
-    console.error('rejectDeal error:', error);
+  if (error || !updated) {
+    console.error('rejectDeal error (possibly already actioned):', error);
     return false;
   }
 
-  // Also update linked mission
-  const { data: deal } = await supabase
-    .from('scout_deals')
-    .select('mission_id')
-    .eq('id', dealId)
-    .single();
-
-  if (deal?.mission_id) {
-    await supabase
+  // Update linked mission
+  if (updated.mission_id) {
+    const { error: mErr } = await supabase
       .from('missions')
       .update({ status: 'rejected' })
-      .eq('id', deal.mission_id);
+      .eq('id', updated.mission_id);
+
+    if (mErr) {
+      console.error('rejectDeal: mission update failed:', mErr);
+    }
   }
+
+  // Audit log
+  await supabase.from('deal_audit_log').insert({
+    deal_id: dealId,
+    mission_id: updated.mission_id,
+    action: 'rejected',
+    source: 'dashboard',
+    reason: reason || 'Passed by Shuki',
+    performed_by: (await supabase.auth.getUser()).data.user?.email || 'unknown',
+  }).then(({ error: auditErr }) => {
+    if (auditErr) console.error('Audit log insert failed:', auditErr);
+  });
 
   return true;
 }
 
-/** Subscribe to real-time scout_deals changes */
-export function subscribeToDeals(onUpdate: () => void) {
+/** Subscribe to real-time scout_deals changes — uses incremental updates */
+export function subscribeToDeals(onUpdate: (payload: any) => void) {
   if (!isLive || !supabase) return () => {};
 
   const channel = supabase
@@ -224,7 +258,7 @@ export function subscribeToDeals(onUpdate: () => void) {
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'scout_deals' },
-      () => onUpdate()
+      (payload) => onUpdate(payload)
     )
     .subscribe();
 

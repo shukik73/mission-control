@@ -6,7 +6,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 const EBAY_APP_ID = process.env.EBAY_APP_ID!;
 const EBAY_CERT_ID = process.env.EBAY_CERT_ID!;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const SHUKI_TELEGRAM_ID = '6103393903';
+const SHUKI_TELEGRAM_ID = process.env.SHUKI_TELEGRAM_ID!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -87,10 +87,10 @@ function ghostProtocolFilter(item: any) {
     return { pass: false, reason: 'red_flag_keyword' };
   }
 
-  // SELLER REPUTATION
+  // SELLER REPUTATION — reject if rating < 90% OR feedback count < 50
   const sellerRating = parseFloat(item.seller?.feedbackPercentage || '0');
   const sellerFeedback = parseInt(item.seller?.feedbackScore || '0', 10);
-  if (sellerRating < 95 && sellerFeedback < 100) {
+  if (sellerRating < 90 || sellerFeedback < 50) {
     return { pass: false, reason: 'seller_risky' };
   }
 
@@ -107,8 +107,12 @@ function ghostProtocolFilter(item: any) {
   // ESTIMATE VALUE
   const estimatedValue = item._estimatedValue || estimateMarketValue(title);
 
-  // ROI CALCULATION
-  const profit = estimatedValue - totalCost;
+  // ROI CALCULATION — includes platform fees (eBay 12.9% + payment 2.9%)
+  const ebayFee = (estimatedValue * 0.129) + 0.30;
+  const paymentFee = (estimatedValue * 0.029) + 0.30;
+  const platformFees = ebayFee + paymentFee;
+  const netRevenue = estimatedValue - platformFees;
+  const profit = netRevenue - totalCost;
   const roi = totalCost > 0 ? (profit / totalCost) * 100 : 0;
 
   if (roi < 20) {
@@ -128,6 +132,7 @@ function ghostProtocolFilter(item: any) {
     estimatedValue: estimatedValue.toFixed(2),
     totalCost: totalCost.toFixed(2),
     profit: profit.toFixed(2),
+    platformFees: platformFees.toFixed(2),
     price: price.toFixed(2),
     shippingCost: shippingCost.toFixed(2),
   };
@@ -372,8 +377,13 @@ async function sendDealAlert(item: any, ghostResult: any, mission: any) {
 // ── MAIN SCOUT CRON HANDLER ──
 export async function GET(request: Request) {
   // Verify cron secret (Vercel sends this header for cron invocations)
+  // FAIL CLOSED: if CRON_SECRET is not configured, deny all requests
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return new Response(JSON.stringify({ error: 'Server misconfigured: CRON_SECRET not set' }), { status: 500 });
+  }
   const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
@@ -398,6 +408,26 @@ export async function GET(request: Request) {
         console.log(`  "${query}" -> ${items.length} results`);
 
         for (const item of items) {
+          // Currency validation — skip non-USD listings
+          const currency = item.price?.currency || item.price?.currencyCode || 'USD';
+          if (currency !== 'USD') {
+            passed++;
+            continue;
+          }
+
+          // Dedup check — skip if item_url already exists in scout_deals
+          if (item.itemWebUrl) {
+            const { data: existing } = await supabase
+              .from('scout_deals')
+              .select('id')
+              .eq('item_url', item.itemWebUrl)
+              .limit(1);
+
+            if (existing && existing.length > 0) {
+              continue; // already tracked
+            }
+          }
+
           // Enrich with market value from DB
           item._estimatedValue = await getMarketValue(item.title || '');
 

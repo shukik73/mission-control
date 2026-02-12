@@ -5,6 +5,7 @@ import { DealStatus, Priority, StreamType, Deal, Agent } from './types';
 import { MOCK_AGENTS, MOCK_DEALS } from './constants';
 import { fetchDeals, fetchAgents, approveDeal, rejectDeal, subscribeToDeals } from './lib/api';
 import { isLive } from './lib/supabase';
+import { quickROI } from './lib/roi';
 import { LayoutDashboard, Settings, Bell, Search, AlertCircle, Rocket, DollarSign, BarChart2, Sun, Moon, Wifi, WifiOff } from 'lucide-react';
 
 const ColumnHeader: React.FC<{ title: string; count: number; status: DealStatus }> = ({ title, count, status }) => {
@@ -60,12 +61,17 @@ export default function App() {
     loadData();
   }, [loadData]);
 
-  // Real-time subscription
+  // Real-time subscription — debounced to avoid rapid-fire refetches
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout>;
     const unsub = subscribeToDeals(() => {
-      loadData(); // refetch on any change
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => loadData(), 500);
     });
-    return unsub;
+    return () => {
+      clearTimeout(debounceTimer);
+      unsub();
+    };
   }, [loadData]);
 
   // ── Deal Actions ──
@@ -95,19 +101,17 @@ export default function App() {
     { id: DealStatus.Done, title: 'Done' },
   ];
 
-  // --- FILTERING LOGIC ---
+  // --- FILTERING LOGIC (uses unified ROI with platform fees) ---
   const filterDeal = (deal: Deal): boolean => {
     // 1. Stream Filter
     if (streamFilter !== 'all' && deal.stream !== streamFilter) return false;
 
-    // 2. Auto-Pass Logic (Crucial Update)
+    // 2. Auto-Pass Logic — uses fee-adjusted ROI from unified calculator
     // Skip auto-pass for reports/internal items with no cost
     if (deal.stream === 'deal' && (deal.cost > 0 || deal.shipping > 0)) {
-        const totalCost = deal.cost + deal.shipping;
-        const profit = deal.marketValue - totalCost;
-        const roi = totalCost > 0 ? (profit / totalCost) * 100 : 0;
+        const roi = quickROI(deal.cost, deal.shipping, deal.marketValue);
 
-        // Rule 1: Auto-pass ROI < 20%
+        // Rule 1: Auto-pass ROI < 20% (after fees)
         if (roi < 20) return false;
 
         // Rule 2: Non-electronics < 100% ROI -> Auto-pass
