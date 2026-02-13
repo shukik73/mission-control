@@ -11,11 +11,9 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents }) => {
   const [selectedStream, setSelectedStream] = useState<string>('All Streams');
 
   const getStatusColor = (agent: Agent) => {
-    // Agent status is the primary signal — not lastActive time
     if (agent.status === 'paused') return 'text-zinc-500';
-    if (agent.status === 'waiting') return 'text-yellow-500';
 
-    // For 'active' agents, verify with heartbeat freshness
+    // For active and idle agents, use heartbeat freshness
     const now = new Date();
     const diffMins = (now.getTime() - agent.lastActive.getTime()) / 60000;
     if (diffMins < 15) return 'text-emerald-500';
@@ -25,7 +23,6 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents }) => {
 
   const getStatusIcon = (agent: Agent) => {
     if (agent.status === 'paused') return <PauseCircle size={14} />;
-    if (agent.status === 'waiting') return <Clock size={14} />;
 
     const now = new Date();
     const diffMins = (now.getTime() - agent.lastActive.getTime()) / 60000;
@@ -36,7 +33,13 @@ export const AgentSidebar: React.FC<AgentSidebarProps> = ({ agents }) => {
 
   const getStatusLabel = (agent: Agent): string => {
     if (agent.status === 'paused') return 'Not deployed';
-    if (agent.status === 'waiting') return 'Idle';
+
+    const now = new Date();
+    const diffMins = (now.getTime() - agent.lastActive.getTime()) / 60000;
+    if (agent.status === 'waiting') {
+      if (diffMins < 15) return 'Standby';
+      return 'Idle';
+    }
     return 'Active';
   };
 
