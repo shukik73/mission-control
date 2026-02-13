@@ -156,13 +156,13 @@ Since the initial audit, **14 of 30 issues have been fully resolved** and 4 more
 
 ## F. STRATEGIC WEAKNESSES
 
-### F1. NO CLOSED-LOOP REVENUE TRACKING — SCHEMA ADDED
-- **New:** `03_revenue_tracking.sql` migration adds:
-  - `purchased_at`, `actual_purchase_price`, `sold_at`, `actual_sale_price`, `actual_platform_fees`, `actual_profit` columns to `scout_deals`
+### F1. NO CLOSED-LOOP REVENUE TRACKING — DEPLOYED
+- **New:** `03_revenue_tracking.sql` migration deployed to Supabase:
+  - `purchased_at`, `actual_purchase_price`, `sold_at`, `actual_sale_price`, `actual_platform_fees`, `actual_profit` columns added to `scout_deals`
   - `revenue_reconciliation` view (estimated vs actual performance)
   - `daily_revenue_summary` view (daily P&L)
   - New `sold` status for completed sales
-- **Next step:** Run migration on Supabase, build UI for recording purchases/sales.
+- **Next step:** Build UI for recording purchases/sales.
 
 ### F2. FOUNDER BOTTLENECK — OPEN
 - Every deal still requires Shuki approval. No auto-approval rules.
@@ -198,14 +198,14 @@ Since the initial audit, **14 of 30 issues have been fully resolved** and 4 more
 9. ~~Add status checks before approve/reject~~ DONE
 10. ~~Add eBay link to dashboard deal cards~~ DONE
 11. ~~Wire up Ask Jay button~~ DONE
-12. ~~Add revenue tracking schema~~ DONE (needs deployment)
+12. ~~Add revenue tracking schema~~ DONE (deployed)
 13. ~~Sanitize Telegram input~~ DONE
 14. ~~Fix bot Realtime channel cleanup~~ DONE
 
 ### Next Priority (P2)
 15. **Integrate eBay completed listings** for real market values
 16. **Implement auto-approval rules** to reduce founder bottleneck
-17. **Deploy 03_revenue_tracking.sql** and build purchase/sale UI
+17. ~~Deploy 03_revenue_tracking.sql~~ DONE — build purchase/sale UI next
 18. **Database transactions** for multi-table writes (Supabase RPC)
 19. **Add "Show All" toggle** to stop silent deal filtering
 
@@ -274,7 +274,7 @@ The gap between current ($52K) and target ($250K) is primarily:
 | ~~**P1**~~ | ~~Audit log~~ | ~~2h~~ | ~~High~~ | DONE |
 | **P2** | Integrate eBay sold listings API | 8 hours | Critical | TODO |
 | **P2** | Auto-approval rules | 6 hours | High | TODO |
-| **P2** | Deploy revenue tracking migration | 1 hour | High | READY |
+| ~~**P2**~~ | ~~Deploy revenue tracking migration~~ | ~~1 hour~~ | ~~High~~ | DONE |
 | **P2** | Database transactions (RPC) | 4 hours | Medium | TODO |
 | **P3** | Revenue reconciliation UI | 8 hours | High | TODO |
 | **P3** | SendGrid email automation | 8 hours | Medium | TODO |
@@ -298,7 +298,7 @@ Mission Control has evolved from a **dangerous prototype** to a **functional MVP
 **What still needs work:**
 1. **Static market pricing** — The biggest revenue risk. A MacBook Pro M3 and a 2012 model get the same value.
 2. **Founder bottleneck** — No auto-approval. Every deal waits for Shuki.
-3. **No revenue measurement** — Schema is ready (03_revenue_tracking.sql), needs deployment + UI.
+3. **No revenue measurement** — Schema deployed. Needs purchase/sale recording UI.
 4. **No automated email sending** — Emilio drafts, Shuki sends manually.
 
 **The system is ready for production.** To scale past $50K/year, the top 3 priorities are: (1) accurate market pricing, (2) auto-approval rules, and (3) revenue tracking deployment.
