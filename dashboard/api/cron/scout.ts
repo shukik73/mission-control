@@ -12,6 +12,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // ── SEARCH QUERIES (Automated Cron Mode) ──
 const CRON_SEARCH_QUERIES = [
+  // === WHOLE DEVICE RESALE (high-value arbitrage) ===
+  'refurbished MacBook Pro',
+  'refurbished iPhone',
+  'refurbished iPad Pro',
+  'refurbished Razer Blade',
+  'refurbished gaming laptop',
+  'refurbished Samsung Galaxy S',
+  'refurbished PS5 console',
+  'refurbished Xbox Series X',
+
+  // === PARTS (component resale) ===
   'MacBook Pro logic board',
   'iPhone screen replacement OEM',
   'laptop battery replacement',
@@ -58,9 +69,9 @@ async function searchEbay(query: string, token: string) {
   const res = await fetch(
     `https://api.ebay.com/buy/browse/v1/item_summary/search` +
       `?q=${searchQuery}` +
-      `&filter=conditionIds:{3000|7000}` +
+      `&filter=conditionIds:{2000|2500|3000|7000}` +
       `&filter=itemLocationCountry:US` +
-      `&filter=price:[5..500],priceCurrency:USD` +
+      `&filter=price:[5..2000],priceCurrency:USD` +
       `&sort=newlyListed` +
       `&limit=50`,
     {
@@ -170,16 +181,52 @@ async function getMarketValue(title: string): Promise<number> {
 
 function estimateMarketValue(title: string): number {
   const t = title.toLowerCase();
-  const benchmarks: Record<string, number> = {
-    'macbook pro': 450, 'macbook air': 350, macbook: 400,
-    'iphone 15': 500, 'iphone 14': 400, 'iphone 13': 300, 'iphone 12': 200, iphone: 250,
-    'ipad pro': 350, ipad: 250,
-    'samsung s24': 400, 'samsung s23': 300, samsung: 200,
-    ps5: 300, xbox: 250, 'apple watch': 150, airpods: 100, dell: 200,
-    screen: 80, 'logic board': 120, battery: 40, keyboard: 60, 'charging port': 30,
-  };
+  // Ordered most-specific first so "macbook pro m3" matches before "macbook pro"
+  const benchmarks: [string, number][] = [
+    // Gaming laptops
+    ['razer blade', 1800],
+    ['alienware', 900],
+    ['rog strix', 800],
+    ['rog zephyrus', 900],
+    ['legion pro', 700],
 
-  for (const [keyword, value] of Object.entries(benchmarks)) {
+    // Business laptops
+    ['thinkpad', 400],
+    ['surface pro', 500],
+    ['surface laptop', 550],
+
+    // Apple — specific models first
+    ['macbook pro m3', 1200], ['macbook pro m2', 900], ['macbook pro m1', 700],
+    ['macbook pro', 450], ['macbook air', 350], ['macbook', 400],
+    ['iphone 15 pro', 700], ['iphone 15', 500],
+    ['iphone 14 pro', 550], ['iphone 14', 400],
+    ['iphone 13', 300], ['iphone 12', 200], ['iphone', 250],
+    ['ipad pro m2', 600], ['ipad pro m1', 450], ['ipad pro', 350], ['ipad', 250],
+
+    // Samsung — specific models first
+    ['samsung s24 ultra', 600], ['samsung s24', 400],
+    ['samsung s23 ultra', 500], ['samsung s23', 300],
+    ['samsung', 200],
+
+    // Consoles
+    ['ps5 digital', 250], ['ps5', 300],
+    ['xbox series x', 300], ['xbox series s', 180], ['xbox', 250],
+    ['nintendo switch oled', 220], ['nintendo switch', 180],
+    ['steam deck', 300],
+
+    // Accessories
+    ['apple watch ultra', 350], ['apple watch', 150],
+    ['airpods pro', 150], ['airpods', 100],
+
+    // Generic brands
+    ['dell', 200], ['hp', 200], ['asus', 250], ['lenovo', 250], ['acer', 200],
+
+    // Parts (lowest priority)
+    ['logic board', 120], ['screen', 80], ['keyboard', 60],
+    ['battery', 40], ['charging port', 30],
+  ];
+
+  for (const [keyword, value] of benchmarks) {
     if (t.includes(keyword)) return value;
   }
   return 100;
@@ -191,6 +238,9 @@ function detectItemType(title: string): string {
     'iphone', 'samsung', 'macbook', 'ipad', 'laptop', 'tablet', 'apple watch',
     'airpods', 'ps5', 'xbox', 'switch', 'screen', 'logic board', 'battery',
     'motherboard', 'keyboard', 'charging port', 'hdmi', 'flex cable',
+    'razer', 'alienware', 'thinkpad', 'surface', 'asus', 'rog',
+    'lenovo', 'dell', 'hp', 'acer', 'gaming', 'steam deck', 'nintendo',
+    'rtx', 'gpu',
   ];
   return electronics.some((k) => t.includes(k)) ? 'electronics' : 'other';
 }
@@ -204,6 +254,12 @@ function extractModel(title: string): string {
     /dell\s+\w+\s*\d+/i,
     /ps5|playstation\s*5/i,
     /xbox\s+series\s*[xs]/i,
+    /razer\s+blade\s*\d*\s*(advanced|base|studio)?/i,
+    /alienware\s+\w+\s*\d*/i,
+    /thinkpad\s+[a-z]\d+\s*(gen\s*\d+)?/i,
+    /surface\s+(pro|laptop|go)\s*\d*/i,
+    /rog\s+(strix|zephyrus)\s*\w*/i,
+    /steam\s*deck/i,
   ];
 
   for (const pattern of patterns) {
